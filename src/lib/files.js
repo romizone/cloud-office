@@ -1,7 +1,25 @@
-const KEY = 'cloud-office-files-v2'
+const KEY = 'cloud-office-files-v4'
 
-export const COLS = 18
-export const ROWS = 40
+export const COLS = 26
+export const ROWS = 80
+
+export function ensureGrid(cells = [], formats = []) {
+  const next = blankGrid()
+  const fmt = blankFormats()
+  ;(cells || []).forEach((row, r) => {
+    if (r >= ROWS) return
+    ;(row || []).forEach((value, c) => {
+      if (c < COLS) next[r][c] = value ?? ''
+    })
+  })
+  ;(formats || []).forEach((row, r) => {
+    if (r >= ROWS) return
+    ;(row || []).forEach((value, c) => {
+      if (c < COLS) fmt[r][c] = value
+    })
+  })
+  return { cells: next, formats: fmt }
+}
 
 export function blankGrid(rows = ROWS, cols = COLS, fill = '') {
   return Array.from({ length: rows }, () => Array.from({ length: cols }, () => fill))

@@ -29,7 +29,11 @@ export default function PdfEditor({ file, onChange, onBack, onNotify }) {
   const current = PAGES[page - 1]
 
   const applyCopilot = async (result) => {
-    if (result?.notes) setNotes(result.notes)
+    if (result?.notes) {
+      setNotes(result.notes)
+      return true
+    }
+    return false
   }
 
   const getContext = () => ({

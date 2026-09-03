@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Bot, Check, Send, Sparkles, X } from 'lucide-react'
-import { askCopilot, copilotHealth } from '../lib/copilotClient.js'
+import { askCopilot, copilotHealth, didPatchCanvas } from '../lib/copilotClient.js'
 
 const SUGGESTIONS = {
   doc: [
@@ -46,7 +46,17 @@ export default function AgentPanel({ kind = 'home', onClose, onAsk, onApply, get
     setPrompt('')
     setMessages((list) => [...list, { role: 'user', text: q }])
     setBusy(true)
-    let message = 'Siap. Perubahan diterapkan ke file yang terbuka.'
+    let message = ''
+    let applied = false
+    if (kind !== 'home' && onAsk) {
+      try {
+        const fallback = await onAsk(q)
+        applied = true
+        if (fallback?.message) message = fallback.message
+      } catch {
+        /* local canvas apply failed — still try the gateway */
+      }
+    }
     try {
       const result = await askCopilot({
         kind,
@@ -54,15 +64,26 @@ export default function AgentPanel({ kind = 'home', onClose, onAsk, onApply, get
         context: getContext?.() || {},
         history: messages.slice(-6),
       })
-      await onApply?.(result)
+      if (didPatchCanvas(kind, result)) {
+        await onApply?.(result)
+        applied = true
+      }
       if (result?.message) message = result.message
     } catch {
-      try {
-        const fallback = await onAsk?.(q)
-        if (fallback?.message) message = `${fallback.message} (mode lokal)`
-      } catch {
-        message = 'Copilot tidak bisa menerapkan perubahan itu. Coba briefing yang lebih spesifik.'
+      if (!applied && onAsk) {
+        try {
+          const fallback = await onAsk(q)
+          applied = true
+          if (fallback?.message) message = fallback.message
+        } catch {
+          message = 'Copilot tidak bisa menerapkan perubahan itu. Coba briefing yang lebih spesifik.'
+        }
       }
+    }
+    if (!message) {
+      message = applied
+        ? 'Perubahan diterapkan ke file yang terbuka.'
+        : 'Tidak ada perubahan di kanvas. Coba briefing yang lebih spesifik.'
     }
     setMessages((list) => [...list, { role: 'ai', text: message }])
     setBusy(false)
@@ -74,7 +95,7 @@ export default function AgentPanel({ kind = 'home', onClose, onAsk, onApply, get
         <div className="ai-title">
           <span className="ai-orb"><Sparkles size={17} /></span>
           <span>
-            <strong>DeepSeek V4 Flash Vision</strong>
+            <strong>DeepRomeo</strong>
             <small>Copilot di dalam file · {configured ? 'gateway server' : 'siap siaga lokal'}</small>
           </span>
         </div>
@@ -100,12 +121,12 @@ export default function AgentPanel({ kind = 'home', onClose, onAsk, onApply, get
             )}
           </div>
         ))}
-        {busy && <div className="ai-message typing">DeepSeek sedang bekerja di file…</div>}
+        {busy && <div className="ai-message typing">DeepRomeo sedang bekerja di file…</div>}
       </div>
       <form className="ai-input" onSubmit={(event) => { event.preventDefault(); submit() }}>
         <textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder="Briefing untuk Copilot…" rows="2" />
         <div>
-          <small>Powered by DeepSeek V4 Flash Vision <Check size={12} /></small>
+          <small>Powered by DeepRomeo <Check size={12} /></small>
           <button type="submit" aria-label="Kirim"><Send size={16} /></button>
         </div>
       </form>

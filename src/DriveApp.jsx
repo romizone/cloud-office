@@ -282,7 +282,7 @@ export default function DriveApp({ files, onOpen, onCreate, onPatch, onNotify })
             </div>
             <div className="tip-card">
               <div className="tip-icon"><Sparkles size={19} /></div>
-              <p className="eyebrow">DEEPSEEK V4 FLASH VISION</p>
+              <p className="eyebrow">DEEPROMEO</p>
               <h3>Brief sekali. Dapatkan file jadi.</h3>
               <p>Buka Docs, Sheets, atau Slides. Copilot di kanan file merangkum, menghitung, atau menambah slide — di dalam dokumen yang terbuka.</p>
               <button onClick={() => setShowAssistant(true)}>Buka Copilot <ArrowUpRight size={15} /></button>

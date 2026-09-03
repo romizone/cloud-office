@@ -3,6 +3,6 @@ import { getApiKey } from '../../server/copilotCore.js'
 export default function handler(req, res) {
   res.status(200).json({
     configured: Boolean(getApiKey()),
-    label: 'DeepSeek V4 Flash Vision',
+    label: 'DeepRomeo',
   })
 }

@@ -463,6 +463,89 @@ function callFn(name, args, ctx, rawArgs) {
     })
     return fn === 'SUMIF' ? num(total) : num(count)
   }
+  if (fn === 'MEDIAN') {
+    const ns = numbersOf(args).sort((a, b) => a - b)
+    if (!ns.length) return err(ERRORS.value)
+    const mid = Math.floor(ns.length / 2)
+    return num(ns.length % 2 ? ns[mid] : (ns[mid - 1] + ns[mid]) / 2)
+  }
+  if (fn === 'PRODUCT') return num(numbersOf(args).reduce((a, b) => a * b, 1))
+  if (fn === 'STDEV') {
+    const ns = numbersOf(args)
+    if (ns.length < 2) return err(ERRORS.div)
+    const mean = ns.reduce((a, b) => a + b, 0) / ns.length
+    return num(Math.sqrt(ns.reduce((a, b) => a + (b - mean) ** 2, 0) / (ns.length - 1)))
+  }
+  if (fn === 'INT') {
+    const n = asNumber(args[0])
+    return typeof n === 'object' ? n : num(Math.trunc(n))
+  }
+  if (fn === 'MOD') {
+    const n = asNumber(args[0])
+    const d = asNumber(args[1])
+    if (typeof n === 'object') return n
+    if (typeof d === 'object' || d === 0) return err(ERRORS.div)
+    return num(((n % d) + d) % d)
+  }
+  if (fn === 'ROUNDUP') {
+    const n = asNumber(args[0])
+    const d = asNumber(args[1] || num(0))
+    if (typeof n === 'object') return n
+    const p = 10 ** (typeof d === 'object' ? 0 : d)
+    return num(Math.ceil(n * p) / p)
+  }
+  if (fn === 'ROUNDDOWN') {
+    const n = asNumber(args[0])
+    const d = asNumber(args[1] || num(0))
+    if (typeof n === 'object') return n
+    const p = 10 ** (typeof d === 'object' ? 0 : d)
+    return num(Math.floor(n * p) / p)
+  }
+  if (fn === 'TEXTJOIN') {
+    const delim = asString(args[0])
+    const skip = truthy(args[1])
+    const parts = flatten({ t: 'l', v: args.slice(2) }).filter((v) => !skip || !isEmpty(v)).map(asString)
+    return str(parts.join(delim))
+  }
+  if (fn === 'SUBSTITUTE') return str(asString(args[0]).split(asString(args[1])).join(asString(args[2])))
+  if (fn === 'SEARCH' || fn === 'FIND') {
+    const needle = asString(args[0])
+    const hay = asString(args[1])
+    const start = Math.max(0, (typeof asNumber(args[2] || num(1)) === 'object' ? 1 : asNumber(args[2] || num(1))) - 1)
+    const idx = fn === 'FIND' ? hay.indexOf(needle, start) : hay.toLowerCase().indexOf(needle.toLowerCase(), start)
+    return idx < 0 ? err(ERRORS.value) : num(idx + 1)
+  }
+  if (fn === 'VALUE') {
+    const n = asNumber(args[0])
+    return typeof n === 'object' ? n : num(n)
+  }
+  if (fn === 'YEAR' || fn === 'MONTH' || fn === 'DAY') {
+    const d = new Date(asString(args[0]))
+    if (Number.isNaN(d.getTime())) return err(ERRORS.value)
+    return num(fn === 'YEAR' ? d.getFullYear() : fn === 'MONTH' ? d.getMonth() + 1 : d.getDate())
+  }
+  if (fn === 'LARGE' || fn === 'SMALL') {
+    const ns = numbersOf([args[0]]).sort((a, b) => fn === 'LARGE' ? b - a : a - b)
+    const k = asNumber(args[1] || num(1))
+    if (typeof k === 'object' || k < 1 || k > ns.length) return err(ERRORS.value)
+    return num(ns[k - 1])
+  }
+  if (fn === 'RANK') {
+    const n = asNumber(args[0])
+    const ns = numbersOf([args[1]]).sort((a, b) => b - a)
+    if (typeof n === 'object') return n
+    const idx = ns.indexOf(n)
+    return idx < 0 ? err(ERRORS.na) : num(idx + 1)
+  }
+  if (fn === 'RAND') return num(Math.random())
+  if (fn === 'RANDBETWEEN') {
+    const a = asNumber(args[0])
+    const b = asNumber(args[1])
+    if (typeof a === 'object' || typeof b === 'object') return err(ERRORS.value)
+    const lo = Math.min(a, b)
+    const hi = Math.max(a, b)
+    return num(Math.floor(Math.random() * (hi - lo + 1)) + lo)
+  }
   if (fn === 'VLOOKUP') {
     const lookup = args[0]
     const table = args[1]
@@ -483,6 +566,32 @@ function callFn(name, args, ctx, rawArgs) {
     const found = rows.find((row) => asString(row[0]).toLowerCase() === asString(lookup).toLowerCase() || (typeof asNumber(row[0]) !== 'object' && asNumber(row[0]) === asNumber(lookup)))
     if (!found) return err(ERRORS.na)
     return found[index - 1] || err(ERRORS.ref)
+  }
+  if (fn === 'INDEX') {
+    const rowNum = asNumber(args[1] ?? num(1))
+    const colNum = args[2] == null ? 1 : asNumber(args[2])
+    if (typeof rowNum === 'object') return rowNum
+    if (typeof colNum === 'object') return colNum
+    if (rawArgs[0]?.k === 'range') {
+      const start = parseA1(rawArgs[0].a)
+      const end = parseA1(rawArgs[0].b)
+      if (!start || !end) return err(ERRORS.ref)
+      const r1 = Math.min(start.row, end.row)
+      const c1 = Math.min(start.col, end.col)
+      const height = Math.abs(end.row - start.row) + 1
+      const width = Math.abs(end.col - start.col) + 1
+      if (rowNum < 1 || rowNum > height || colNum < 1 || colNum > width) return err(ERRORS.ref)
+      return ctx.get(r1 + rowNum - 1, c1 + colNum - 1)
+    }
+    const values = flatten(args[0])
+    if (rowNum < 1 || rowNum > values.length) return err(ERRORS.ref)
+    return values[rowNum - 1]
+  }
+  if (fn === 'MATCH') {
+    const lookup = args[0]
+    const values = flatten(args[1])
+    const idx = values.findIndex((val) => asString(val).toLowerCase() === asString(lookup).toLowerCase() || (typeof asNumber(val) !== 'object' && typeof asNumber(lookup) !== 'object' && asNumber(val) === asNumber(lookup)))
+    return idx < 0 ? err(ERRORS.na) : num(idx + 1)
   }
   return err(ERRORS.name)
 }
@@ -539,6 +648,8 @@ export function displayOf(val, fmt) {
     if (fmt === 'currency') return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(val.v)
     if (fmt === 'percent') return new Intl.NumberFormat('id-ID', { style: 'percent', maximumFractionDigits: 1 }).format(val.v)
     if (fmt === 'number') return new Intl.NumberFormat('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(val.v)
+    if (fmt === 'date') return new Date(Math.round((val.v - 25569) * 86400000)).toLocaleDateString('id-ID')
+    if (fmt === 'accounting') return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 2 }).format(val.v)
     if (Number.isInteger(val.v)) return new Intl.NumberFormat('id-ID').format(val.v)
     return new Intl.NumberFormat('id-ID', { maximumFractionDigits: 6 }).format(val.v)
   }
