@@ -1,13 +1,18 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   ChevronDown, ChevronUp, Copy, Eye, EyeOff, FilePlus2, Image, LayoutGrid, Play,
-  Presentation, Square, Table2, Trash2
+  Square, Table2, Trash2
 } from 'lucide-react'
-import { AgentToggle, EditorChrome, MenuBar, useSavedFlag } from '../components/EditorChrome.jsx'
+import { EditorChrome, MenuBar, useSavedFlag } from '../components/EditorChrome.jsx'
 import { Ribbon, RibbonBtn, RibbonPick } from '../components/Ribbon.jsx'
 import AgentPanel from '../components/AgentPanel.jsx'
+import { CanvasCopilotChip } from '../components/CopilotBridge.jsx'
+import FileBackstage from '../components/FileBackstage.jsx'
+import ShareDialog from '../components/ShareDialog.jsx'
+import { PowerPointIcon } from '../components/MsApps.jsx'
 import { newId } from '../lib/files.js'
 import { exportPptx } from '../lib/export.js'
+import { asFragment, isAnalyzeIntent, isReviseIntent, replacePick, useCanvasPick } from '../lib/canvasPick.js'
 
 const THEMES = [
   { id: 'northstar', label: 'Northstar' },
@@ -142,10 +147,17 @@ export default function SlidesEditor({ file, onChange, onBack, onNotify }) {
   const [presenter, setPresenter] = useState(false)
   const [sorter, setSorter] = useState(false)
   const [showAgent, setShowAgent] = useState(true)
+  const [backstage, setBackstage] = useState(false)
+  const [share, setShare] = useState(false)
   const [elapsed, setElapsed] = useState(0)
   const timer = useRef(null)
+  const stageRef = useRef(null)
+  const [pick, clearPick, pickRef] = useCanvasPick(stageRef)
+  const [copilotBusy, setCopilotBusy] = useState(false)
   const indexRef = useRef(0)
   indexRef.current = index
+  const contentRef = useRef(content)
+  contentRef.current = content
   const saved = useSavedFlag(JSON.stringify(content) + title)
   const slide = content.slides[index] || content.slides[0]
   const transition = content.transition || 'fade'
@@ -154,6 +166,7 @@ export default function SlidesEditor({ file, onChange, onBack, onNotify }) {
     setTitle(file.name)
     setContent(file.content)
     setIndex(0)
+    clearPick()
   }, [file.id])
 
   useEffect(() => {
@@ -203,7 +216,7 @@ export default function SlidesEditor({ file, onChange, onBack, onNotify }) {
 
   const go = (dir) => {
     const current = indexRef.current
-    const ids = content.slides.map((item, i) => (!present || !item.hidden ? i : -1)).filter((i) => i >= 0)
+    const ids = contentRef.current.slides.map((item, i) => (!present || !item.hidden ? i : -1)).filter((i) => i >= 0)
     const at = ids.indexOf(current)
     const next = ids[Math.max(0, Math.min(ids.length - 1, at + dir))]
     if (next != null) setIndex(next)
@@ -224,6 +237,13 @@ export default function SlidesEditor({ file, onChange, onBack, onNotify }) {
   }
 
   const applyCopilot = async (result) => {
+    if (pickRef.current?.text && stageRef.current) {
+      const frag = result?.selectionHtml || result?.html
+      if (frag) {
+        replacePick(stageRef.current, pickRef.current, asFragment(typeof frag === 'string' ? frag : JSON.stringify(frag)))
+        return true
+      }
+    }
     if (Array.isArray(result?.slides) && result.slides.length) {
       persist({
         ...content,
@@ -252,10 +272,24 @@ export default function SlidesEditor({ file, onChange, onBack, onNotify }) {
     title,
     theme: content.theme,
     index,
+    selection: pickRef.current?.text || '',
+    scoped: Boolean(pickRef.current?.text),
     slides: content.slides.map((item) => ({ layout: item.layout, kicker: item.kicker, title: item.title, subtitle: item.subtitle, body: item.body, extra: item.extra, notes: item.notes, hidden: item.hidden })),
   })
 
   const askAgent = async (prompt) => {
+    const picked = pickRef.current
+    if (picked?.text) {
+      if (isAnalyzeIntent(prompt) && !isReviseIntent(prompt)) {
+        return { message: `Dari pilihan slide: “${picked.text.slice(0, 360)}${picked.text.length > 360 ? '…' : ''}”` }
+      }
+      if (isReviseIntent(prompt) && stageRef.current) {
+        const cut = picked.text.split(/(?<=[.!?])\s+/)[0] || picked.text
+        replacePick(stageRef.current, picked, asFragment(cut))
+        return { message: 'Pilihan di slide diperbarui. Teks lain tidak diubah.' }
+      }
+      return { message: `Siap bekerja pada pilihan: “${picked.text.slice(0, 160)}${picked.text.length > 160 ? '…' : ''}”` }
+    }
     const q = prompt.toLowerCase()
     if (q.includes('agenda')) {
       const slides = [...content.slides]
@@ -270,8 +304,31 @@ export default function SlidesEditor({ file, onChange, onBack, onNotify }) {
       setIndex(slides.length - 1)
       return { message: 'Slide penutup ditambahkan ke kanvas.' }
     }
-    updateSlide({ ...slide, notes: `${slide.notes ? `${slide.notes}\n` : ''}Agen: ${prompt}` })
-    return { message: 'Briefing ditulis ke catatan pembicara di kanvas.' }
+    if (q.includes('catatan')) {
+      const bullets = String(slide.body || '').split('\n').filter(Boolean)
+      const notes = bullets.length
+        ? `Buka dengan “${slide.title}”. Bahas: ${bullets.join('; ')}.`
+        : `Buka dengan “${slide.title}”. ${slide.subtitle || ''}`.trim()
+      updateSlide({ ...slide, notes })
+      return { message: 'Catatan pembicara ditulis untuk slide ini.' }
+    }
+    if (q.includes('slide baru') || q.includes('tambah slide')) {
+      addSlide('content')
+      return { message: 'Slide baru ditambahkan setelah slide ini.' }
+    }
+    if (q.includes('presentasi dari') || q.includes('buat presentasi')) {
+      const topic = prompt.replace(/.*?(dari|tentang)\s*/i, '').trim() || 'briefing ini'
+      const slides = [
+        { ...blankSlide('title'), kicker: 'MICROSOFT 365', title: topic, subtitle: 'Disusun oleh Copilot' },
+        { ...blankSlide('content'), kicker: 'AGENDA', title: 'Yang akan kita bahas', body: 'Konteks\nPendekatan\nBukti\nLangkah berikutnya' },
+        { ...blankSlide('content'), kicker: 'KONTEKS', title: 'Masalah yang kita selesaikan', body: 'Situasi saat ini\nDampak bagi tim\nPeluang' },
+        { ...blankSlide('section'), kicker: 'BERIKUTNYA', title: 'Langkah berikutnya', subtitle: 'Keputusan yang dibutuhkan dan pemiliknya' },
+      ]
+      persist({ ...content, slides })
+      setIndex(0)
+      return { message: `Presentasi ${slides.length} slide dibuat dari briefing.` }
+    }
+    return { message: 'Copilot siaga lokal: minta slide agenda, slide penutup, catatan pembicara, atau presentasi baru dari briefing. Seleksi teks untuk merevisi bagian tertentu.', applied: false }
   }
 
   const ribbon = [
@@ -292,7 +349,7 @@ export default function SlidesEditor({ file, onChange, onBack, onNotify }) {
             <RibbonBtn key="x" icon={Trash2} label="Hapus" onClick={() => {
               if (content.slides.length < 2) return onNotify('Minimal satu slide')
               persist({ ...content, slides: content.slides.filter((_, i) => i !== index) })
-              setIndex(Math.max(0, index - 1))
+              setIndex(Math.min(index, content.slides.length - 2))
             }} />,
             <RibbonBtn key="h" icon={slide.hidden ? Eye : EyeOff} label={slide.hidden ? 'Tampilkan' : 'Sembunyikan'} onClick={() => updateSlide({ ...slide, hidden: !slide.hidden })} />,
           ],
@@ -344,7 +401,7 @@ export default function SlidesEditor({ file, onChange, onBack, onNotify }) {
         {
           label: 'Mulai',
           items: [
-            <RibbonBtn key="p" icon={Play} label="Dari awal" onClick={() => { setIndex(0); setPresenter(false); setPresent(true) }} />,
+            <RibbonBtn key="p" icon={Play} label="Dari awal" onClick={() => { setIndex(Math.max(0, content.slides.findIndex((item) => !item.hidden))); setPresenter(false); setPresent(true) }} />,
             <RibbonBtn key="c" icon={Play} label="Dari saat ini" onClick={() => { setPresenter(false); setPresent(true) }} />,
             <RibbonBtn key="pv" icon={Play} label="Tampilan presenter" onClick={() => { setPresenter(true); setPresent(true) }} />,
           ],
@@ -363,23 +420,32 @@ export default function SlidesEditor({ file, onChange, onBack, onNotify }) {
   const nextVisible = content.slides.find((item, i) => i > index && !item.hidden)
 
   return (
-    <div className="ed-shell slides-app">
+    <div className={`ed-shell slides-app ${showAgent ? 'linked' : ''} ${copilotBusy ? 'copilot-busy' : ''}`}>
       <div className="ed-main">
         <EditorChrome
-          icon={Presentation}
-          tone="orange"
+          kind="slides"
+          mark={<PowerPointIcon size={28} />}
           title={title}
           onTitle={(value) => { setTitle(value); persist(content, value) }}
           saved={saved}
           onBack={onBack}
-          onShare={() => onNotify('Tautan presentasi siap dibagikan')}
+          onShare={() => setShare(true)}
+          onCopilot={() => setShowAgent((v) => !v)}
           extra={(
-            <>
-              <button className="present-btn" onClick={() => { setPresenter(false); setPresent(true) }}><Play size={14} /> Presentasikan</button>
-              <AgentToggle onClick={() => setShowAgent((v) => !v)} />
-            </>
+            <button className="present-btn" onClick={() => { setIndex(Math.max(0, content.slides.findIndex((item) => !item.hidden))); setPresenter(false); setPresent(true) }}><Play size={14} /> Mulai dari awal</button>
           )}
         />
+        {backstage && (
+          <FileBackstage
+            kind="slides"
+            title={title}
+            onClose={() => setBackstage(false)}
+            onHome={onBack}
+            onPrint={() => window.print()}
+            onExport={async () => { await exportPptx(title, content); onNotify('Dek diunduh') }}
+            onNotify={onNotify}
+          />
+        )}
         <MenuBar items={[{
           label: 'File',
           actions: [
@@ -387,7 +453,7 @@ export default function SlidesEditor({ file, onChange, onBack, onNotify }) {
             { id: 'present', label: 'Mulai slide show', run: () => setPresent(true) },
           ],
         }]} />
-        <Ribbon tabs={ribbon} accent="ppt" />
+        <Ribbon tabs={ribbon} accent="ppt" onFile={() => setBackstage(true)} />
         {sorter ? (
           <div className="sl-sorter">
             {content.slides.map((item, i) => (
@@ -414,14 +480,14 @@ export default function SlidesEditor({ file, onChange, onBack, onNotify }) {
                 <button onClick={() => move(-1)}><ChevronUp size={14} /></button>
                 <button onClick={() => move(1)}><ChevronDown size={14} /></button>
                 <button onClick={() => { const slides = [...content.slides]; slides.splice(index + 1, 0, { ...slide, id: newId('s') }); persist({ ...content, slides }); setIndex(index + 1) }}><Copy size={14} /></button>
-                <button onClick={() => {
-                  if (content.slides.length < 2) return
+                <button aria-label="Hapus slide" onClick={() => {
+                  if (content.slides.length < 2) return onNotify('Minimal satu slide')
                   persist({ ...content, slides: content.slides.filter((_, i) => i !== index) })
-                  setIndex(Math.max(0, index - 1))
+                  setIndex(Math.min(index, content.slides.length - 2))
                 }}><Trash2 size={14} /></button>
               </div>
             </aside>
-            <main className="sl-stage">
+            <main className={`sl-stage ${pick?.text ? 'copilot-scoped' : ''}`} ref={stageRef}>
               <SlideCanvas key={slide.id + (slide.layout || '')} slide={slide} theme={content.theme} onChange={updateSlide} transition={transition} />
               <div className="slide-controls">
                 <button onClick={() => go(-1)}>←</button>
@@ -436,7 +502,9 @@ export default function SlidesEditor({ file, onChange, onBack, onNotify }) {
           </div>
         )}
       </div>
-      {showAgent && <AgentPanel kind="slides" floating onClose={() => setShowAgent(false)} getContext={getContext} onApply={applyCopilot} onAsk={askAgent} />}
+      <CanvasCopilotChip pick={pick} onOpen={() => setShowAgent(true)} />
+      {showAgent && <AgentPanel kind="slides" app="PowerPoint" floating onClose={() => setShowAgent(false)} getContext={getContext} onApply={applyCopilot} onAsk={askAgent} selectionText={pick?.text || ''} onClearSelection={clearPick} onBusyChange={setCopilotBusy} />}
+      {share && <ShareDialog title={`${title}.pptx`} onClose={() => setShare(false)} onNotify={onNotify} />}
       {present && !presenter && (
         <div className="sl-present" onClick={() => go(1)}>
           <SlideCanvas slide={slide} theme={content.theme} onChange={() => {}} present transition={transition} />

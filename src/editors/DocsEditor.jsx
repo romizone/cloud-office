@@ -1,21 +1,28 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
-  AlignCenter, AlignJustify, AlignLeft, AlignRight, Bold, Columns2, FileText,
+  AlignCenter, AlignJustify, AlignLeft, AlignRight, Bold, BookOpen, CircleHelp, Columns2, Eye,
   Highlighter, Image, Indent, Italic, Link, List, ListOrdered, MessageSquare,
-  Outdent, Printer, Replace, Search, Strikethrough, Subscript, Superscript,
+  Outdent, PenLine, Printer, Replace, Search, Strikethrough, Subscript, Superscript,
   Table2, Type, Underline
 } from 'lucide-react'
-import { AgentToggle, EditorChrome, MenuBar, useSavedFlag } from '../components/EditorChrome.jsx'
+import { EditorChrome, MenuBar, useSavedFlag } from '../components/EditorChrome.jsx'
 import { Ribbon, RibbonBtn, RibbonPick } from '../components/Ribbon.jsx'
 import AgentPanel from '../components/AgentPanel.jsx'
+import { CanvasCopilotChip } from '../components/CopilotBridge.jsx'
+import FileBackstage from '../components/FileBackstage.jsx'
+import ShareDialog from '../components/ShareDialog.jsx'
+import { WordIcon } from '../components/MsApps.jsx'
 import { exportDoc, exportDocText } from '../lib/export.js'
 import { newId } from '../lib/files.js'
+import { USER } from '../lib/brand.js'
+import { paintHtml, parseFontColor } from '../lib/editIntent.js'
+import { asFragment, colorPick, isAnalyzeIntent, isReviseIntent, replacePick, useCanvasPick } from '../lib/canvasPick.js'
 
 const COLORS = ['#17232d', '#c0392b', '#1f6f5b', '#1d4e89', '#b86a1c', '#6b4ea2', '#ffffff']
 const HILITES = ['transparent', '#fff3bf', '#d3f9d8', '#d0ebff', '#ffe3e3', '#f3e8ff']
 const FONTS = [
+  { value: 'Calibri, "Segoe UI", sans-serif', label: 'Calibri' },
   { value: 'Georgia, serif', label: 'Georgia' },
-  { value: 'Calibri, sans-serif', label: 'Calibri' },
   { value: 'Arial, sans-serif', label: 'Arial' },
   { value: '"Times New Roman", serif', label: 'Times New Roman' },
   { value: '"Plus Jakarta Sans", sans-serif', label: 'Jakarta Sans' },
@@ -29,6 +36,8 @@ function run(command, value = null) {
 
 export default function DocsEditor({ file, onChange, onBack, onNotify }) {
   const paper = useRef(null)
+  const [pick, clearPick, pickRef] = useCanvasPick(paper)
+  const [copilotBusy, setCopilotBusy] = useState(false)
   const [title, setTitle] = useState(file.name)
   const [html, setHtml] = useState(file.content.html)
   const [header, setHeader] = useState(file.content.header || 'Northstar Studio')
@@ -39,12 +48,16 @@ export default function DocsEditor({ file, onChange, onBack, onNotify }) {
   const [replace, setReplace] = useState('')
   const [showAgent, setShowAgent] = useState(true)
   const [showComments, setShowComments] = useState(false)
+  const [backstage, setBackstage] = useState(false)
+  const [share, setShare] = useState(false)
   const [zoom, setZoom] = useState(file.content.zoom || 100)
   const [columns, setColumns] = useState(file.content.columns || 1)
   const [pageColor, setPageColor] = useState(file.content.pageColor || '#ffffff')
   const [lineHeight, setLineHeight] = useState(file.content.lineHeight || '1.75')
   const [margin, setMargin] = useState(file.content.margin || 'normal')
   const [counts, setCounts] = useState({ words: 0, chars: 0, paras: 0 })
+  const [fontName, setFontName] = useState(FONTS[0].value)
+  const [fontSize, setFontSize] = useState('12')
   const saved = useSavedFlag(html + title + header + footer + JSON.stringify(comments) + zoom)
 
   useEffect(() => {
@@ -58,6 +71,7 @@ export default function DocsEditor({ file, onChange, onBack, onNotify }) {
     setPageColor(file.content.pageColor || '#ffffff')
     setLineHeight(file.content.lineHeight || '1.75')
     setMargin(file.content.margin || 'normal')
+    clearPick()
   }, [file.id])
 
   const persist = (patch = {}) => {
@@ -109,12 +123,43 @@ export default function DocsEditor({ file, onChange, onBack, onNotify }) {
     return true
   }
 
-  const applyCopilot = async (result) => {
-    if (result?.html) return writePaper(result.html)
-    if (result?.appendHtml) {
-      return writePaper(`${paper.current?.innerHTML || html}${result.appendHtml}`)
+  const applyTextColor = (color) => {
+    const el = paper.current
+    if (!el || !color) return false
+    if (pickRef.current?.text && colorPick(el, pickRef.current, color)) {
+      persist()
+      return true
     }
-    return false
+    const selection = window.getSelection()
+    const range = document.createRange()
+    range.selectNodeContents(el)
+    selection.removeAllRanges()
+    selection.addRange(range)
+    run('foreColor', color)
+    selection.removeAllRanges()
+    paintHtml(el, color)
+    persist()
+    return true
+  }
+
+  const applyToPick = (html) => {
+    if (!pickRef.current?.text || !paper.current) return false
+    const ok = replacePick(paper.current, pickRef.current, html)
+    if (ok) persist()
+    return ok
+  }
+
+  const applyCopilot = async (result) => {
+    if (pickRef.current?.text) {
+      if (result?.color) applyTextColor(result.color)
+      const frag = result?.selectionHtml || result?.appendHtml || (result?.html && !/<h1[\s>]/i.test(result.html) ? result.html : null)
+      if (frag) return applyToPick(asFragment(frag))
+      return Boolean(result?.color)
+    }
+    if (result?.html) writePaper(result.html)
+    else if (result?.appendHtml) writePaper(`${paper.current?.innerHTML || html}${result.appendHtml}`)
+    if (result?.color) return applyTextColor(result.color)
+    return Boolean(result?.html || result?.appendHtml)
   }
 
   const insertImage = () => {
@@ -146,18 +191,27 @@ export default function DocsEditor({ file, onChange, onBack, onNotify }) {
     const quote = window.getSelection()?.toString() || 'Pilihan'
     const text = window.prompt('Komentar', '')
     if (!text) return
-    const next = [...comments, { id: newId('c'), quote, text, author: 'RS', at: new Date().toISOString() }]
+    const next = [...comments, { id: newId('c'), quote: quote.slice(0, 160), text, author: USER.initials, at: new Date().toISOString() }]
     setComments(next)
     setShowComments(true)
     persist({ comments: next })
   }
 
   const replaceAll = () => {
-    if (!find) return
-    const current = paper.current?.innerHTML || html
-    paper.current.innerHTML = current.split(find).join(replace)
+    if (!find || !paper.current) return
+    let count = 0
+    const walker = document.createTreeWalker(paper.current, NodeFilter.SHOW_TEXT)
+    const nodes = []
+    let node
+    while ((node = walker.nextNode())) nodes.push(node)
+    nodes.forEach((textNode) => {
+      if (!textNode.nodeValue.includes(find)) return
+      count += textNode.nodeValue.split(find).length - 1
+      textNode.nodeValue = textNode.nodeValue.split(find).join(replace)
+    })
+    if (!count) return onNotify('Teks tidak ditemukan')
     persist()
-    onNotify('Teks diganti')
+    onNotify(`${count} kemunculan diganti`)
   }
 
   const printDoc = () => window.print()
@@ -168,24 +222,63 @@ export default function DocsEditor({ file, onChange, onBack, onNotify }) {
     text: (paper.current?.innerText || '').slice(0, 4000),
     header,
     footer,
+    selection: pickRef.current?.text || '',
+    scoped: Boolean(pickRef.current?.text),
   })
 
   const askAgent = async (prompt) => {
+    const color = parseFontColor(prompt)
+    const picked = pickRef.current
+    if (picked?.text) {
+      if (color) {
+        applyTextColor(color.value)
+        return { message: `Font pada pilihan diubah menjadi ${color.label}.` }
+      }
+      if (isAnalyzeIntent(prompt) && !isReviseIntent(prompt)) {
+        return { message: `Dari pilihan: “${picked.text.slice(0, 360)}${picked.text.length > 360 ? '…' : ''}”` }
+      }
+      if (isReviseIntent(prompt) || /tulis ulang|buat draf/i.test(prompt)) {
+        const cut = picked.text.split(/(?<=[.!?])\s+/)[0] || picked.text
+        applyToPick(`<span>${cut.replace(/&/g, '&amp;').replace(/</g, '&lt;')}</span>`)
+        return { message: 'Pilihan di kanvas diperbarui. Teks lain tidak diubah.' }
+      }
+      return { message: `Siap bekerja pada pilihan: “${picked.text.slice(0, 160)}${picked.text.length > 160 ? '…' : ''}”` }
+    }
+    if (color) {
+      applyTextColor(color.value)
+      return { message: `Font di kanvas diubah menjadi ${color.label}.` }
+    }
     const q = prompt.toLowerCase()
     const current = paper.current?.innerHTML || html
-    if (q.includes('ringkas')) {
-      writePaper(current.replace(/<\/h1>/i, '</h1><blockquote>Ringkasan: dokumen ini menetapkan arah, prioritas, dan cara mengukur kemajuan.</blockquote>'))
+    const text = paper.current?.innerText || ''
+    if (q.includes('ringkas') || q.includes('rangkum')) {
+      const firstLines = text.split(/\n+/).map((line) => line.trim()).filter((line) => line.length > 40).slice(0, 2).join(' ')
+      const summary = firstLines || 'dokumen ini menetapkan arah, prioritas, dan cara mengukur kemajuan.'
+      const block = `<blockquote>Ringkasan: ${summary.replace(/&/g, '&amp;').replace(/</g, '&lt;')}</blockquote>`
+      writePaper(/<\/h1>/i.test(current) ? current.replace(/<\/h1>/i, `</h1>${block}`) : `${block}${current}`)
       return { message: 'Ringkasan ditulis di kanvas, di bawah judul.' }
     }
-    if (q.includes('kesimpulan')) {
+    if (q.includes('kesimpulan') || q.includes('penutup')) {
       writePaper(`${current}<h2>Kesimpulan</h2><p>Langkah berikutnya adalah mengeksekusi prioritas kuartal ini dan meninjau progres setiap dua minggu.</p>`)
       return { message: 'Bagian kesimpulan ditambahkan di kanvas.' }
     }
-    insertTable()
-    return { message: 'Tabel disisipkan ke kanvas dokumen.' }
+    if (q.includes('tabel')) {
+      insertTable()
+      return { message: 'Tabel disisipkan ke kanvas dokumen.' }
+    }
+    if (q.includes('daftar isi')) {
+      const heads = [...(paper.current?.querySelectorAll('h2') || [])].map((el) => el.innerText.trim()).filter(Boolean)
+      if (!heads.length) return { message: 'Belum ada Judul 2 untuk dijadikan daftar isi.', applied: false }
+      insertHtml(`<h2>Daftar isi</h2><ol class="toc">${heads.map((h) => `<li>${h.replace(/&/g, '&amp;').replace(/</g, '&lt;')}</li>`).join('')}</ol>`)
+      return { message: 'Daftar isi disisipkan dari judul yang ada.' }
+    }
+    if (q.includes('berapa') || q.includes('jumlah kata') || q.includes('hitung')) {
+      return { message: `Dokumen ini ${counts.words} kata, ${counts.chars} karakter, ${counts.paras} paragraf.`, applied: false }
+    }
+    return { message: 'Copilot siaga lokal: minta ringkasan, kesimpulan, tabel, daftar isi, atau warna font. Seleksi teks untuk merevisi bagian tertentu.', applied: false }
   }
 
-  const menus = useMemo(() => [
+  const menus = [
     {
       label: 'File',
       actions: [
@@ -210,7 +303,7 @@ export default function DocsEditor({ file, onChange, onBack, onNotify }) {
         { id: 'z125', label: 'Zoom 125%', run: () => { setZoom(125); persist({ zoom: 125 }) } },
       ],
     },
-  ], [title, html])
+  ]
 
   const ribbon = [
     {
@@ -227,8 +320,14 @@ export default function DocsEditor({ file, onChange, onBack, onNotify }) {
         {
           label: 'Font',
           items: [
-            <RibbonPick key="f" width={130} value="Georgia, serif" onChange={(v) => apply('fontName', v)} options={FONTS} />,
-            <RibbonPick key="s" width={64} value="12" onChange={(v) => { apply('fontSize', '7'); document.querySelectorAll('.paper font[size="7"]').forEach((el) => { el.removeAttribute('size'); el.style.fontSize = `${v}pt` }) }} options={SIZES} />,
+            <RibbonPick key="f" width={130} value={fontName} onChange={(v) => { setFontName(v); apply('fontName', v) }} options={FONTS} />,
+            <RibbonPick key="s" width={64} value={fontSize} onChange={(v) => {
+              setFontSize(v)
+              paper.current?.focus()
+              run('fontSize', '7')
+              paper.current?.querySelectorAll('font[size="7"]').forEach((el) => { el.removeAttribute('size'); el.style.fontSize = `${v}pt` })
+              persist()
+            }} options={SIZES} />,
             <RibbonBtn key="b" icon={Bold} label="Tebal" onClick={() => apply('bold')} />,
             <RibbonBtn key="i" icon={Italic} label="Miring" onClick={() => apply('italic')} />,
             <RibbonBtn key="un" icon={Underline} label="Garis" onClick={() => apply('underline')} />,
@@ -292,6 +391,19 @@ export default function DocsEditor({ file, onChange, onBack, onNotify }) {
       ],
     },
     {
+      id: 'draw',
+      label: 'Gambar',
+      groups: [
+        {
+          label: 'Alat gambar',
+          items: [
+            <RibbonBtn key="pen" icon={PenLine} label="Pena" onClick={() => apply('foreColor', '#185ABD')} />,
+            <RibbonBtn key="hi" icon={Highlighter} label="Stabilo" onClick={() => apply('hiliteColor', '#fff3bf')} />,
+          ],
+        },
+      ],
+    },
+    {
       id: 'layout',
       label: 'Tata Letak',
       groups: [
@@ -309,6 +421,22 @@ export default function DocsEditor({ file, onChange, onBack, onNotify }) {
           label: 'Zoom',
           items: [
             <RibbonPick key="z" width={90} value={String(zoom)} onChange={(v) => { const n = Number(v); setZoom(n); persist({ zoom: n }) }} options={[{ value: '80', label: '80%' }, { value: '100', label: '100%' }, { value: '125', label: '125%' }, { value: '150', label: '150%' }]} />,
+          ],
+        },
+      ],
+    },
+    {
+      id: 'refs',
+      label: 'Referensi',
+      groups: [
+        {
+          label: 'Daftar isi',
+          items: [
+            <RibbonBtn key="toc" icon={BookOpen} label="Daftar isi" onClick={() => {
+              const heads = [...(paper.current?.querySelectorAll('h2') || [])].map((el) => el.innerText.trim()).filter(Boolean)
+              if (!heads.length) return onNotify('Tambahkan Judul 2 dulu untuk membuat daftar isi')
+              insertHtml(`<h2>Daftar isi</h2><ol class="toc">${heads.map((h) => `<li>${h.replace(/&/g, '&amp;').replace(/</g, '&lt;')}</li>`).join('')}</ol>`)
+            }} />,
           ],
         },
       ],
@@ -334,6 +462,30 @@ export default function DocsEditor({ file, onChange, onBack, onNotify }) {
         },
       ],
     },
+    {
+      id: 'view',
+      label: 'Tampilan',
+      groups: [
+        {
+          label: 'Tata letak',
+          items: [
+            <RibbonBtn key="print" icon={Eye} label="Tata cetak" onClick={() => { setZoom(100); persist({ zoom: 100 }) }} />,
+          ],
+        },
+      ],
+    },
+    {
+      id: 'help',
+      label: 'Bantuan',
+      groups: [
+        {
+          label: 'Microsoft 365',
+          items: [
+            <RibbonBtn key="f3" icon={CircleHelp} label="Tentang F3" onClick={() => onNotify('Microsoft 365 F3 · Word for the web · OneDrive 2 GB')} />,
+          ],
+        },
+      ],
+    },
   ]
 
   useEffect(() => {
@@ -352,30 +504,42 @@ export default function DocsEditor({ file, onChange, onBack, onNotify }) {
   }, [])
 
   return (
-    <div className="ed-shell docs-app">
+    <div className={`ed-shell docs-app ${showAgent ? 'linked' : ''} ${copilotBusy ? 'copilot-busy' : ''}`}>
       <div className="ed-main">
         <EditorChrome
-          icon={FileText}
-          tone="blue"
+          kind="doc"
+          mark={<WordIcon size={28} />}
           title={title}
           onTitle={(value) => { setTitle(value); persist({ title: value }) }}
           saved={saved}
           onBack={onBack}
-          onShare={() => onNotify('Tautan dokumen siap dibagikan')}
-          extra={<AgentToggle onClick={() => setShowAgent((v) => !v)} />}
+          onShare={() => setShare(true)}
+          onComments={() => setShowComments((v) => !v)}
+          onCopilot={() => setShowAgent((v) => !v)}
         />
+        {backstage && (
+          <FileBackstage
+            kind="doc"
+            title={title}
+            onClose={() => setBackstage(false)}
+            onHome={onBack}
+            onPrint={printDoc}
+            onExport={() => exportDoc(title, paper.current?.innerHTML || html)}
+            onNotify={onNotify}
+          />
+        )}
         <MenuBar items={menus} />
-        <Ribbon tabs={ribbon} accent="word" />
+        <Ribbon tabs={ribbon} accent="word" onFile={() => setBackstage(true)} />
         {findOpen && (
           <div className="find-bar">
             <Search size={14} />
             <input autoFocus value={find} placeholder="Temukan" onChange={(event) => setFind(event.target.value)} onKeyDown={(event) => {
-              if (event.key === 'Enter') window.find(find, false, event.shiftKey, true)
+              if (event.key === 'Enter' && find) { if (!window.find?.(find, false, event.shiftKey, true)) onNotify('Teks tidak ditemukan') }
               if (event.key === 'Escape') setFindOpen(false)
             }} />
             <Replace size={14} />
             <input value={replace} placeholder="Ganti dengan" onChange={(event) => setReplace(event.target.value)} />
-            <button onClick={() => window.find(find, false, false, true)}>Berikutnya</button>
+            <button onClick={() => { if (find && !window.find?.(find, false, false, true)) onNotify('Teks tidak ditemukan') }}>Berikutnya</button>
             <button onClick={replaceAll}>Ganti semua</button>
             <button onClick={() => setFindOpen(false)}>Tutup</button>
           </div>
@@ -385,7 +549,7 @@ export default function DocsEditor({ file, onChange, onBack, onNotify }) {
             <div className="page-stack" style={{ transform: `scale(${zoom / 100})` }}>
               <div className="page-header" contentEditable suppressContentEditableWarning onBlur={(event) => { const v = event.currentTarget.innerText; setHeader(v); persist({ header: v }) }}>{header}</div>
               <article
-                className={`paper cols-${columns} margin-${margin}`}
+                className={`paper cols-${columns} margin-${margin} ${pick?.text ? 'copilot-scoped' : ''}`}
                 style={{ background: pageColor, lineHeight }}
                 ref={(el) => {
                   paper.current = el
@@ -398,6 +562,7 @@ export default function DocsEditor({ file, onChange, onBack, onNotify }) {
                 contentEditable
                 suppressContentEditableWarning
                 onInput={() => persist()}
+                onBlur={() => persist()}
                 spellCheck
               />
               <div className="page-footer">
@@ -426,12 +591,15 @@ export default function DocsEditor({ file, onChange, onBack, onNotify }) {
           <span>{counts.words} kata</span>
           <span>{counts.chars} karakter</span>
           <span>{counts.paras} paragraf</span>
+          {showAgent && <span className="copilot-link-badge">Copilot terhubung{pick?.text ? ' · pilihan' : ''}</span>}
           <button onClick={printDoc}><Printer size={13} /> Cetak</button>
         </footer>
       </div>
+      <CanvasCopilotChip pick={pick} onOpen={() => setShowAgent(true)} />
       {showAgent && (
-        <AgentPanel kind="doc" floating onClose={() => setShowAgent(false)} getContext={getContext} onApply={applyCopilot} onAsk={askAgent} />
+        <AgentPanel kind="doc" app="Word" floating onClose={() => setShowAgent(false)} getContext={getContext} onApply={applyCopilot} onAsk={askAgent} selectionText={pick?.text || ''} onClearSelection={clearPick} onBusyChange={setCopilotBusy} />
       )}
+      {share && <ShareDialog title={`${title}.docx`} onClose={() => setShare(false)} onNotify={onNotify} />}
     </div>
   )
 }

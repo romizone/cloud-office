@@ -1,22 +1,53 @@
 import { useEffect, useRef, useState } from 'react'
-import { ArrowLeft, ChevronDown, Sparkles, Users } from 'lucide-react'
+import { Cloud, MessageSquare } from 'lucide-react'
+import { CopilotMark } from './MsApps.jsx'
+import { APP_NAME, EXT, USER } from '../lib/brand.js'
 
-export function EditorChrome({ icon: Icon, tone = 'blue', title, onTitle, saved, onBack, onShare, extra, children }) {
+export function EditorChrome({
+  kind = 'doc',
+  mark,
+  title,
+  onTitle,
+  saved,
+  onBack,
+  onShare,
+  onComments,
+  extra,
+  children,
+  onCopilot,
+}) {
+  const app = APP_NAME[kind] || 'Office'
+  const ext = EXT[kind] || 'docx'
   return (
     <>
-      <header className="ed-top">
-        <button className="ed-back" onClick={onBack}><ArrowLeft size={17} /> <span>Drive</span></button>
+      <header className={`ed-top accent-${kind}`}>
+        <button className="ed-appmark" onClick={onBack} title="Microsoft 365">
+          {mark}
+        </button>
         <div className="ed-file">
-          <span className={`ed-file-icon ${tone}`}><Icon size={17} /></span>
           <div>
-            <input value={title} onChange={(event) => onTitle(event.target.value)} aria-label="Nama file" />
-            <small>{saved ? 'Tersimpan di Cloud Office' : 'Menyimpan perubahan…'}</small>
+            <span className="ed-name-row">
+              <input value={title} onChange={(event) => onTitle(event.target.value)} aria-label="Nama file" />
+              <em>.{ext}</em>
+            </span>
+            <small>
+              <Cloud size={11} />
+              {saved ? `Simpan otomatis · OneDrive · ${app}` : 'Menyimpan ke OneDrive…'}
+            </small>
           </div>
         </div>
         <div className="ed-actions">
           {extra}
-          <button className="share-button" onClick={onShare}><Users size={15} /> Bagikan</button>
-          <div className="user-avatar">RS</div>
+          {onComments && (
+            <button className="ghost" onClick={onComments}><MessageSquare size={14} /> Komentar</button>
+          )}
+          <button className="share-button" onClick={onShare}>Bagikan</button>
+          {onCopilot && (
+            <button className="agent-toggle" onClick={onCopilot}>
+              <CopilotMark size={16} /> Copilot
+            </button>
+          )}
+          <div className="ms-avatar sm" title={USER.email}>{USER.initials}</div>
         </div>
       </header>
       {children}
@@ -41,7 +72,7 @@ export function MenuBar({ items }) {
       {items.map((item) => (
         <div className="ed-menu" key={item.label}>
           <button className={open === item.label ? 'on' : ''} onClick={() => setOpen(open === item.label ? null : item.label)}>
-            {item.label} {item.chevron && <ChevronDown size={12} />}
+            {item.label}
           </button>
           {open === item.label && (
             <div className="ed-menu-pop">
@@ -64,7 +95,7 @@ export function MenuBar({ items }) {
 export function AgentToggle({ onClick }) {
   return (
     <button className="agent-toggle" onClick={onClick}>
-      <Sparkles size={15} /> Copilot
+      <CopilotMark size={16} /> Copilot
     </button>
   )
 }

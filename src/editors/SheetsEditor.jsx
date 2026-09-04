@@ -1,16 +1,22 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   AlignCenter, AlignLeft, AlignRight, BarChart3, Bold, FilePlus2, Filter,
-  Italic, PaintBucket, Plus, Search, Sigma, Table2, Trash2, Underline
+  Italic, PaintBucket, Plus, Search, Sigma, Trash2, Type, Underline
 } from 'lucide-react'
-import { AgentToggle, EditorChrome, MenuBar, useSavedFlag } from '../components/EditorChrome.jsx'
+import { EditorChrome, MenuBar, useSavedFlag } from '../components/EditorChrome.jsx'
 import { Ribbon, RibbonBtn, RibbonPick } from '../components/Ribbon.jsx'
 import AgentPanel from '../components/AgentPanel.jsx'
+import { focusCopilotComposer } from '../components/CopilotBridge.jsx'
+import FileBackstage from '../components/FileBackstage.jsx'
+import ShareDialog from '../components/ShareDialog.jsx'
+import { CopilotMark, ExcelIcon } from '../components/MsApps.jsx'
 import { COLS, ROWS, blankFormats, blankGrid, ensureGrid, newId, parseCsv } from '../lib/files.js'
 import { colLabel, displayOf, evaluateGrid, rangeStats } from '../lib/formulas.js'
 import { exportCsv, exportXlsx } from '../lib/export.js'
+import { parseFontColor } from '../lib/editIntent.js'
 
 const FILLS = ['transparent', '#eef8f4', '#fff3bf', '#d0ebff', '#ffe3e3', '#f3e8ff', '#217346']
+const FONT_COLORS = ['#17232d', '#c0392b', '#1f6f5b', '#1d4e89', '#b86a1c', '#6b4ea2']
 
 function cloneTab(tab) {
   const padded = ensureGrid(tab.cells, tab.formats)
@@ -78,13 +84,18 @@ export default function SheetsEditor({ file, onChange, onBack, onNotify }) {
   const [content, setContent] = useState(file.content)
   const [sel, setSel] = useState({ r: 1, c: 0, r2: 1, c2: 0 })
   const [editing, setEditing] = useState(false)
+  const [editSource, setEditSource] = useState('cell')
   const [draft, setDraft] = useState('')
+  const editingRef = useRef(false)
   const [showAgent, setShowAgent] = useState(true)
+  const [copilotBusy, setCopilotBusy] = useState(false)
   const [filter, setFilter] = useState(null)
   const [freeze, setFreeze] = useState(true)
   const [chart, setChart] = useState(null)
   const [findOpen, setFindOpen] = useState(false)
   const [find, setFind] = useState('')
+  const [backstage, setBackstage] = useState(false)
+  const [share, setShare] = useState(false)
   const dragging = useRef(false)
   const gridRef = useRef(null)
   const fileInput = useRef(null)
@@ -127,8 +138,17 @@ export default function SheetsEditor({ file, onChange, onBack, onNotify }) {
     patchTab((item) => { item.cells[r][c] = value; return item })
   }
 
-  const applyFormat = (patch) => {
+  const applyFormat = (patch, allUsed = false) => {
     patchTab((item) => {
+      if (allUsed) {
+        item.cells.forEach((row, r) => {
+          row.forEach((value, c) => {
+            if (!String(value || '').trim()) return
+            item.formats[r][c] = { ...(item.formats[r][c] || {}), ...patch }
+          })
+        })
+        return item
+      }
       for (let r = Math.min(sel.r, sel.r2); r <= Math.max(sel.r, sel.r2); r += 1) {
         for (let c = Math.min(sel.c, sel.c2); c <= Math.max(sel.c, sel.c2); c += 1) {
           item.formats[r][c] = { ...(item.formats[r][c] || {}), ...patch }
@@ -136,6 +156,11 @@ export default function SheetsEditor({ file, onChange, onBack, onNotify }) {
       }
       return item
     })
+  }
+
+  const paintFontColor = (color) => {
+    applyFormat({ color }, false)
+    return true
   }
 
   const clearSelection = () => {
@@ -148,14 +173,22 @@ export default function SheetsEditor({ file, onChange, onBack, onNotify }) {
   }
 
   const commitDraft = (move) => {
-    if (editing) writeCell(sel.r, sel.c, draft)
+    if (editingRef.current && draft !== activeRaw) writeCell(sel.r, sel.c, draft)
+    editingRef.current = false
     setEditing(false)
     if (move === 'down') setSel({ r: Math.min(ROWS - 1, sel.r + 1), c: sel.c, r2: Math.min(ROWS - 1, sel.r + 1), c2: sel.c })
     if (move === 'right') setSel({ r: sel.r, c: Math.min(COLS - 1, sel.c + 1), r2: sel.r, c2: Math.min(COLS - 1, sel.c + 1) })
   }
 
-  const startEdit = (seed = activeRaw, replace = false) => {
+  const cancelEdit = () => {
+    editingRef.current = false
+    setEditing(false)
+  }
+
+  const startEdit = (seed = activeRaw, replace = false, source = 'cell') => {
     setDraft(replace ? seed : (seed ?? activeRaw))
+    setEditSource(source)
+    editingRef.current = true
     setEditing(true)
   }
 
@@ -303,7 +336,7 @@ export default function SheetsEditor({ file, onChange, onBack, onNotify }) {
       else setSel({ r: sel.r, c: Math.min(COLS - 1, sel.c + 1), r2: sel.r, c2: Math.min(COLS - 1, sel.c + 1) })
       return
     }
-    if (event.key === 'Escape') { setEditing(false); return }
+    if (event.key === 'Escape') { cancelEdit(); return }
     if ((event.key === 'Delete' || event.key === 'Backspace') && !editing) { event.preventDefault(); clearSelection(); return }
     const delta = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1] }[event.key]
     if (delta) {
@@ -314,7 +347,7 @@ export default function SheetsEditor({ file, onChange, onBack, onNotify }) {
       else setSel({ r, c, r2: r, c2: c })
       return
     }
-    if (!editing && event.key.length === 1 && !meta) startEdit(event.key, true)
+    if (!editing && event.key.length === 1 && !meta) startEdit(event.key, true, 'cell')
   }
 
   const addSheet = () => {
@@ -324,31 +357,61 @@ export default function SheetsEditor({ file, onChange, onBack, onNotify }) {
   const applyCopilot = async (result) => {
     const cells = Array.isArray(result?.cells) ? result.cells : []
     const formats = Array.isArray(result?.formats) ? result.formats : []
-    if (!cells.length && !formats.length) return false
-    patchTab((item) => {
-      cells.forEach((cell) => {
-        const r = Number(cell.r)
-        const c = Number(cell.c)
-        if (Number.isInteger(r) && Number.isInteger(c) && r >= 0 && r < ROWS && c >= 0 && c < COLS) item.cells[r][c] = String(cell.v ?? '')
+    const r1 = Math.min(sel.r, sel.r2)
+    const r2 = Math.max(sel.r, sel.r2)
+    const c1 = Math.min(sel.c, sel.c2)
+    const c2 = Math.max(sel.c, sel.c2)
+    const rangeSelected = r1 !== r2 || c1 !== c2
+    const inRange = (r, c) => !rangeSelected || (r >= r1 && r <= r2 && c >= c1 && c <= c2)
+    let written = 0
+    if (cells.length || formats.length) {
+      patchTab((item) => {
+        cells.forEach((cell) => {
+          const r = Number(cell.r)
+          const c = Number(cell.c)
+          if (Number.isInteger(r) && Number.isInteger(c) && r >= 0 && r < ROWS && c >= 0 && c < COLS && inRange(r, c)) {
+            item.cells[r][c] = String(cell.v ?? '')
+            written += 1
+          }
+        })
+        formats.forEach((cell) => {
+          const r = Number(cell.r)
+          const c = Number(cell.c)
+          if (!Number.isInteger(r) || !Number.isInteger(c) || r < 0 || r >= ROWS || c < 0 || c >= COLS || !inRange(r, c)) return
+          const patch = { ...cell }
+          delete patch.r
+          delete patch.c
+          item.formats[r][c] = { ...(item.formats[r][c] || {}), ...patch }
+          written += 1
+        })
+        return item
       })
-      formats.forEach((cell) => {
-        const r = Number(cell.r)
-        const c = Number(cell.c)
-        if (!Number.isInteger(r) || !Number.isInteger(c) || r < 0 || r >= ROWS || c < 0 || c >= COLS) return
-        const patch = { ...cell }
-        delete patch.r
-        delete patch.c
-        item.formats[r][c] = { ...(item.formats[r][c] || {}), ...patch }
-      })
-      return item
-    })
-    return true
+    }
+    if (result?.color) {
+      paintFontColor(result.color)
+      written += 1
+    }
+    return written > 0
   }
+
+  const selectedText = (() => {
+    const rows = []
+    for (let r = Math.min(sel.r, sel.r2); r <= Math.max(sel.r, sel.r2); r += 1) {
+      const cols = []
+      for (let c = Math.min(sel.c, sel.c2); c <= Math.max(sel.c, sel.c2); c += 1) {
+        cols.push(String(tab.cells[r]?.[c] ?? ''))
+      }
+      rows.push(cols.join('\t'))
+    }
+    return rows.join('\n')
+  })()
 
   const getContext = () => ({
     title,
     sheet: tab.name,
-    selection: nameBox,
+    selection: selectedText,
+    selectionRange: nameBox,
+    scoped: true,
     used: tab.cells.slice(0, 24).map((row, r) => {
       const cells = row.slice(0, 8)
       if (cells.every((value) => !String(value || '').trim())) return null
@@ -384,18 +447,42 @@ export default function SheetsEditor({ file, onChange, onBack, onNotify }) {
   }
 
   const askAgent = async (prompt) => {
+    const color = parseFontColor(prompt)
+    if (color) {
+      paintFontColor(color.value)
+      return { message: `Font spreadsheet diubah menjadi ${color.label}.` }
+    }
     const q = prompt.toLowerCase()
     if (q.includes('jelas') || q.includes('analisis') || q.includes('tunjuk')) {
       if (!stats) return { message: 'Pilih rentang angka di kanvas, lalu minta analisis lagi.' }
       return { message: `Dari sel ${nameBox}: jumlah ${displayOf({ t: 'n', v: stats.sum })}, rata-rata ${displayOf({ t: 'n', v: stats.avg })}, ${stats.count} angka.` }
     }
     if (q.includes('total') || q.includes('jumlah') || q.includes('sum')) return addTotalRow()
-    if (q.includes('rupiah') || q.includes('format') || q.includes('mata uang')) {
+    if (q.includes('rupiah') || q.includes('mata uang')) {
       applyFormat({ numFmt: 'currency' })
-      return { message: 'Rentang di kanvas diformat Rupiah.' }
+      return { message: `Sel ${nameBox} diformat Rupiah.` }
     }
-    autoSum()
-    return { message: 'AutoSum diterapkan pada sel aktif di kanvas.' }
+    if (q.includes('persen')) {
+      applyFormat({ numFmt: 'percent' })
+      return { message: `Sel ${nameBox} diformat persen.` }
+    }
+    if (q.includes('tebal') || q.includes('bold')) {
+      applyFormat({ bold: true })
+      return { message: `Sel ${nameBox} ditebalkan.` }
+    }
+    if (q.includes('bagan') || q.includes('grafik') || q.includes('chart')) {
+      buildChart(q.includes('garis') ? 'line' : q.includes('pie') ? 'pie' : 'bar')
+      return { message: 'Bagan dibuat dari rentang yang dipilih.' }
+    }
+    if (q.includes('urut')) {
+      sortByCol(q.includes('z') && q.includes('a') && q.indexOf('z') < q.indexOf('a') ? -1 : 1)
+      return { message: `Data diurutkan berdasarkan kolom ${colLabel(sel.c)}.` }
+    }
+    if (q.includes('rata-rata') || q.includes('rata rata') || q.includes('average')) {
+      if (!stats) return { message: 'Pilih rentang angka dulu.', applied: false }
+      return { message: `Rata-rata ${nameBox}: ${displayOf({ t: 'n', v: stats.avg })}.`, applied: false }
+    }
+    return { message: 'Copilot siaga lokal: minta baris total, format Rupiah/persen, bagan, urutkan, atau analisis rentang yang dipilih.', applied: false }
   }
 
   const ribbon = [
@@ -409,6 +496,7 @@ export default function SheetsEditor({ file, onChange, onBack, onNotify }) {
             <RibbonBtn key="b" icon={Bold} label="Tebal" onClick={() => applyFormat({ bold: true })} />,
             <RibbonBtn key="i" icon={Italic} label="Miring" onClick={() => applyFormat({ italic: true })} />,
             <RibbonBtn key="u" icon={Underline} label="Garis" onClick={() => applyFormat({ underline: true })} />,
+            <span key="ink" className="swatches"><Type size={12} />{FONT_COLORS.map((color) => <button key={color} className="swatch" style={{ background: color }} onClick={() => applyFormat({ color })} />)}</span>,
             <span key="f" className="swatches"><PaintBucket size={12} />{FILLS.map((color) => <button key={color} className="swatch" style={{ background: color === 'transparent' ? '#fff' : color }} onClick={() => applyFormat({ fill: color === 'transparent' ? undefined : color })} />)}</span>,
           ],
         },
@@ -505,9 +593,29 @@ export default function SheetsEditor({ file, onChange, onBack, onNotify }) {
   ]
 
   return (
-    <div className="ed-shell sheets-app">
+    <div className={`ed-shell sheets-app ${showAgent ? 'linked' : ''} ${copilotBusy ? 'copilot-busy' : ''}`}>
       <div className="ed-main">
-        <EditorChrome icon={Table2} tone="green" title={title} onTitle={(value) => { setTitle(value); persist(content, value) }} saved={saved} onBack={onBack} onShare={() => onNotify('Tautan spreadsheet siap dibagikan')} extra={<AgentToggle onClick={() => setShowAgent((v) => !v)} />} />
+        <EditorChrome
+          kind="sheet"
+          mark={<ExcelIcon size={28} />}
+          title={title}
+          onTitle={(value) => { setTitle(value); persist(content, value) }}
+          saved={saved}
+          onBack={onBack}
+          onShare={() => setShare(true)}
+          onCopilot={() => setShowAgent((v) => !v)}
+        />
+        {backstage && (
+          <FileBackstage
+            kind="sheet"
+            title={title}
+            onClose={() => setBackstage(false)}
+            onHome={onBack}
+            onPrint={() => window.print()}
+            onExport={async () => { await exportXlsx(title, content.sheets); onNotify('Workbook diunduh') }}
+            onNotify={onNotify}
+          />
+        )}
         <MenuBar items={[{
           label: 'File',
           actions: [
@@ -515,12 +623,12 @@ export default function SheetsEditor({ file, onChange, onBack, onNotify }) {
             { id: 'csv', label: 'Unduh CSV', run: () => exportCsv(title, tab.cells) },
           ],
         }]} />
-        <Ribbon tabs={ribbon} accent="excel" />
+        <Ribbon tabs={ribbon} accent="excel" onFile={() => setBackstage(true)} />
         <input ref={fileInput} className="hidden-input" type="file" accept=".csv,text/csv" onChange={(event) => {
           const blob = event.target.files?.[0]
           if (!blob) return
           blob.text().then((text) => {
-            patchTab((item) => { item.cells = parseCsv(text); item.name = blob.name.replace(/\.csv$/i, '') || item.name; return item })
+            patchTab((item) => { item.cells = parseCsv(text); item.formats = blankFormats(); item.name = (blob.name.replace(/\.csv$/i, '') || item.name).slice(0, 31); return item })
             onNotify(`${blob.name} diimpor`)
           })
           event.target.value = ''
@@ -528,15 +636,19 @@ export default function SheetsEditor({ file, onChange, onBack, onNotify }) {
         {findOpen && (
           <div className="find-bar">
             <Search size={14} />
-            <input value={find} placeholder="Temukan di sheet" onChange={(event) => setFind(event.target.value)} />
+            <input autoFocus value={find} placeholder="Temukan di sheet" onChange={(event) => setFind(event.target.value)} onKeyDown={(event) => { if (event.key === 'Escape') setFindOpen(false) }} />
             <button onClick={() => {
-              for (let r = 0; r < ROWS; r += 1) {
-                for (let c = 0; c < COLS; c += 1) {
-                  if (String(tab.cells[r][c] || '').toLowerCase().includes(find.toLowerCase())) {
-                    setSel({ r, c, r2: r, c2: c })
-                    onNotify(`${colLabel(c)}${r + 1}`)
-                    return
-                  }
+              const needle = find.trim().toLowerCase()
+              if (!needle) return
+              const startAt = sel.r * COLS + sel.c + 1
+              for (let step = 0; step < ROWS * COLS; step += 1) {
+                const idx = (startAt + step) % (ROWS * COLS)
+                const r = Math.floor(idx / COLS)
+                const c = idx % COLS
+                if (String(tab.cells[r][c] || '').toLowerCase().includes(needle)) {
+                  setSel({ r, c, r2: r, c2: c })
+                  onNotify(`${colLabel(c)}${r + 1}`)
+                  return
                 }
               }
               onNotify('Tidak ditemukan')
@@ -546,12 +658,23 @@ export default function SheetsEditor({ file, onChange, onBack, onNotify }) {
         )}
         <div className="formula-bar">
           <span className="cell-reference">{nameBox}</span>
+          <button
+            type="button"
+            className="copilot-link-badge"
+            onClick={() => { setShowAgent(true); window.setTimeout(focusCopilotComposer, 40) }}
+          >
+            <CopilotMark size={13} /> {nameBox}
+          </button>
           <span className="fx">fx</span>
           <input
-            value={editing && sel.r === sel.r2 && sel.c === sel.c2 ? draft : activeRaw}
-            onFocus={() => startEdit(activeRaw)}
-            onChange={(event) => setDraft(event.target.value)}
-            onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); commitDraft('down') } }}
+            value={editing ? draft : activeRaw}
+            onFocus={() => { if (!editing) startEdit(activeRaw, false, 'bar') }}
+            onChange={(event) => { if (!editing) startEdit(event.target.value, true, 'bar'); else setDraft(event.target.value) }}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') { event.preventDefault(); commitDraft('down'); gridRef.current?.focus({ preventScroll: true }) }
+              if (event.key === 'Tab') { event.preventDefault(); commitDraft('right'); gridRef.current?.focus({ preventScroll: true }) }
+              if (event.key === 'Escape') { cancelEdit(); gridRef.current?.focus({ preventScroll: true }) }
+            }}
             placeholder="Nilai atau rumus · SUM AVERAGE IF VLOOKUP INDEX MATCH COUNTIF…"
           />
         </div>
@@ -559,13 +682,13 @@ export default function SheetsEditor({ file, onChange, onBack, onNotify }) {
           <div className={`s-grid ${freeze ? 'freeze' : ''}`} style={{ '--cols': COLS }}>
             <div className="s-corner" />
             {Array.from({ length: COLS }, (_, c) => (
-              <div className={`s-colh ${c >= Math.min(sel.c, sel.c2) && c <= Math.max(sel.c, sel.c2) ? 'hot' : ''}`} key={colLabel(c)}>{colLabel(c)}</div>
+              <div className={`s-colh ${c >= Math.min(sel.c, sel.c2) && c <= Math.max(sel.c, sel.c2) ? 'hot' : ''}`} key={colLabel(c)} onMouseDown={(event) => { event.preventDefault(); if (editing) commitDraft(); gridRef.current?.focus({ preventScroll: true }); setSel({ r: 0, c, r2: ROWS - 1, c2: c }) }}>{colLabel(c)}</div>
             ))}
             {tab.cells.map((row, r) => {
               if (filter && r > 0 && String(row[filter.col] ?? '') !== filter.value) return null
               return (
                 <div className="s-row" key={r} style={{ display: 'contents' }}>
-                  <div className={`s-rowh ${r >= Math.min(sel.r, sel.r2) && r <= Math.max(sel.r, sel.r2) ? 'hot' : ''} ${freeze && r === 0 ? 'frozen' : ''}`}>{r + 1}</div>
+                  <div className={`s-rowh ${r >= Math.min(sel.r, sel.r2) && r <= Math.max(sel.r, sel.r2) ? 'hot' : ''} ${freeze && r === 0 ? 'frozen' : ''}`} onMouseDown={(event) => { event.preventDefault(); if (editing) commitDraft(); gridRef.current?.focus({ preventScroll: true }); setSel({ r, c: 0, r2: r, c2: COLS - 1 }) }}>{r + 1}</div>
                   {row.map((_, c) => {
                     const fmt = tab.formats[r][c] || {}
                     const selected = inSel(sel, r, c)
@@ -576,10 +699,10 @@ export default function SheetsEditor({ file, onChange, onBack, onNotify }) {
                       <div
                         key={`${r}-${c}`}
                         className={`s-cell ${selected ? 'sel' : ''} ${active ? 'active' : ''} ${fmt.bold ? 'b' : ''} ${fmt.italic ? 'i' : ''} ${fmt.underline ? 'u' : ''} ${fmt.wrap ? 'wrap' : ''} ${val?.t === 'e' ? 'err' : ''} ${freeze && r === 0 ? 'frozen' : ''}`}
-                        style={{ background: fmt.fill || (r === 0 ? '#eef8f4' : undefined), textAlign: fmt.align || (val?.t === 'n' ? 'right' : 'left') }}
+                        style={{ background: fmt.fill || (r === 0 ? '#eef8f4' : undefined), textAlign: fmt.align || (val?.t === 'n' ? 'right' : 'left'), color: fmt.color || undefined }}
                         onMouseDown={(event) => {
                           event.preventDefault()
-                          gridRef.current?.focus()
+                          gridRef.current?.focus({ preventScroll: true })
                           dragging.current = true
                           if (event.shiftKey) setSel({ ...sel, r2: r, c2: c })
                           else {
@@ -588,14 +711,14 @@ export default function SheetsEditor({ file, onChange, onBack, onNotify }) {
                           }
                         }}
                         onMouseEnter={() => { if (dragging.current) setSel((s) => ({ ...s, r2: r, c2: c })) }}
-                        onDoubleClick={() => startEdit()}
+                        onDoubleClick={() => startEdit(activeRaw, false, 'cell')}
                       >
-                        {editing && active ? (
-                          <input autoFocus value={draft} onChange={(event) => setDraft(event.target.value)} onBlur={() => commitDraft()} onKeyDown={(event) => {
+                        {editing && active && editSource === 'cell' ? (
+                          <input autoFocus value={draft} onChange={(event) => setDraft(event.target.value)} onBlur={() => { if (editingRef.current) commitDraft() }} onKeyDown={(event) => {
                             event.stopPropagation()
-                            if (event.key === 'Enter') { event.preventDefault(); commitDraft('down') }
-                            else if (event.key === 'Tab') { event.preventDefault(); commitDraft('right') }
-                            else if (event.key === 'Escape') setEditing(false)
+                            if (event.key === 'Enter') { event.preventDefault(); commitDraft('down'); gridRef.current?.focus({ preventScroll: true }) }
+                            else if (event.key === 'Tab') { event.preventDefault(); commitDraft('right'); gridRef.current?.focus({ preventScroll: true }) }
+                            else if (event.key === 'Escape') { cancelEdit(); gridRef.current?.focus({ preventScroll: true }) }
                           }} />
                         ) : show}
                       </div>
@@ -619,19 +742,20 @@ export default function SheetsEditor({ file, onChange, onBack, onNotify }) {
           <div className="sheet-tabs">
             {content.sheets.map((item, index) => (
               <button key={item.id} className={`sheet-tab ${index === content.active ? 'active' : ''}`} onClick={() => persist({ ...content, active: index })} onDoubleClick={() => {
-                const name = window.prompt('Nama sheet', item.name)
+                const name = window.prompt('Nama sheet', item.name)?.trim().slice(0, 31)
                 if (!name) return
                 persist({ ...content, sheets: content.sheets.map((sheet, i) => i === index ? { ...sheet, name } : sheet) })
               }}>{item.name}</button>
             ))}
             <button className="add-sheet" onClick={addSheet}><FilePlus2 size={14} /></button>
-            {content.sheets.length > 1 && <button className="add-sheet" onClick={() => persist({ ...content, sheets: content.sheets.filter((_, i) => i !== content.active), active: Math.max(0, content.active - 1) })}><Trash2 size={14} /></button>}
+            {content.sheets.length > 1 && <button className="add-sheet" aria-label="Hapus sheet" onClick={() => { if (window.confirm(`Hapus sheet “${tab.name}”?`)) persist({ ...content, sheets: content.sheets.filter((_, i) => i !== content.active), active: Math.max(0, content.active - 1) }) }}><Trash2 size={14} /></button>}
           </div>
           <span>{stats ? `Sum ${displayOf({ t: 'n', v: stats.sum })}  ·  Avg ${displayOf({ t: 'n', v: stats.avg })}  ·  Count ${stats.count}` : 'Pilih rentang untuk Sum / Average'}</span>
           <span>Siap</span>
         </footer>
       </div>
-      {showAgent && <AgentPanel kind="sheet" floating onClose={() => setShowAgent(false)} getContext={getContext} onApply={applyCopilot} onAsk={askAgent} />}
+      {showAgent && <AgentPanel kind="sheet" app="Excel" floating onClose={() => setShowAgent(false)} getContext={getContext} onApply={applyCopilot} onAsk={askAgent} selectionText={selectedText} selectionLabel={`Sel ${nameBox}`} onBusyChange={setCopilotBusy} />}
+      {share && <ShareDialog title={`${title}.xlsx`} onClose={() => setShare(false)} onNotify={onNotify} />}
     </div>
   )
 }

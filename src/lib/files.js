@@ -1,3 +1,5 @@
+import { USER } from './brand.js'
+
 const KEY = 'cloud-office-files-v4'
 
 export const COLS = 26
@@ -163,7 +165,7 @@ export function seedFiles() {
       updatedAt: stamp(0, 12),
       favorite: true,
       trashed: false,
-      owner: 'RS',
+      owner: USER.initials,
       content: { html: STRATEGY_HTML },
     },
     {
@@ -173,7 +175,7 @@ export function seedFiles() {
       updatedAt: stamp(1),
       favorite: false,
       trashed: false,
-      owner: 'RS',
+      owner: USER.initials,
       content: salesSheet(),
     },
     {
@@ -183,7 +185,7 @@ export function seedFiles() {
       updatedAt: stamp(3),
       favorite: true,
       trashed: false,
-      owner: 'RS',
+      owner: USER.initials,
       content: investorSlides(),
     },
     {
@@ -193,10 +195,27 @@ export function seedFiles() {
       updatedAt: stamp(5),
       favorite: false,
       trashed: false,
-      owner: 'RS',
+      owner: USER.initials,
       content: { page: 1 },
     },
   ]
+}
+
+const TYPES = ['doc', 'sheet', 'slides', 'pdf']
+
+function normalizeFile(file) {
+  if (!file || typeof file !== 'object' || !TYPES.includes(file.type) || !file.id) return null
+  const fresh = createFile(file.type, file.name)
+  return {
+    ...fresh,
+    ...file,
+    name: String(file.name || fresh.name),
+    updatedAt: file.updatedAt || fresh.updatedAt,
+    favorite: Boolean(file.favorite),
+    trashed: Boolean(file.trashed),
+    shared: Boolean(file.shared),
+    content: file.content && typeof file.content === 'object' ? file.content : fresh.content,
+  }
 }
 
 export function loadFiles() {
@@ -204,7 +223,10 @@ export function loadFiles() {
     const raw = localStorage.getItem(KEY)
     if (raw) {
       const parsed = JSON.parse(raw)
-      if (Array.isArray(parsed) && parsed.length) return parsed
+      if (Array.isArray(parsed)) {
+        const files = parsed.map(normalizeFile).filter(Boolean)
+        if (files.length) return files
+      }
     }
   } catch {
     /* ignore quota / parse */
@@ -227,13 +249,13 @@ export function newId(prefix) {
 
 export function createFile(type, name) {
   const titles = {
-    doc: 'Dokumen tanpa judul',
-    sheet: 'Spreadsheet tanpa judul',
-    slides: 'Presentasi tanpa judul',
-    pdf: 'PDF tanpa judul',
+    doc: 'Dokumen',
+    sheet: 'Buku kerja',
+    slides: 'Presentasi',
+    pdf: 'Dokumen PDF',
   }
   const content = {
-    doc: { html: '<h1>Dokumen tanpa judul</h1><p>Mulai menulis di sini.</p>' },
+    doc: { html: '<h1>Dokumen</h1><p>Mulai menulis di Word for the web. Copilot di kanan dapat menyusun draf, merangkum, atau mengubah nada.</p>' },
     sheet: {
       sheets: [{ id: newId('tab'), name: 'Sheet 1', cells: blankGrid(), formats: blankFormats() }],
       active: 0,
@@ -243,7 +265,7 @@ export function createFile(type, name) {
       slides: [{
         id: newId('s'),
         layout: 'title',
-        kicker: 'CLOUD OFFICE',
+        kicker: 'MICROSOFT 365',
         title: 'Judul presentasi',
         subtitle: 'Tambahkan subtitel untuk membuka cerita.',
         body: '',
@@ -259,7 +281,8 @@ export function createFile(type, name) {
     updatedAt: new Date().toISOString(),
     favorite: false,
     trashed: false,
-    owner: 'RS',
+    shared: false,
+    owner: USER.initials,
     content: content[type],
   }
 }
@@ -277,7 +300,7 @@ export function formatRelative(iso) {
 }
 
 export function typeLabel(type) {
-  return { doc: 'Dokumen', sheet: 'Spreadsheet', slides: 'Presentasi', pdf: 'PDF' }[type] || 'File'
+  return { doc: 'Word', sheet: 'Excel', slides: 'PowerPoint', pdf: 'PDF' }[type] || 'File'
 }
 
 export function parseHash() {
@@ -288,12 +311,28 @@ export function parseHash() {
     const type = view === 'docs' ? 'doc' : view === 'sheets' ? 'sheet' : view === 'pdf' ? 'pdf' : 'slides'
     return { view, type, id }
   }
+  if (['outlook', 'teams', 'copilot', 'onedrive', 'sharepoint', 'apps'].includes(view)) {
+    return { view }
+  }
   return { view: 'home' }
 }
 
 export function fileHash(file) {
   const map = { doc: 'docs', sheet: 'sheets', slides: 'slides', pdf: 'pdf' }
   return `#/${map[file.type]}/${file.id}`
+}
+
+export function escapeText(text) {
+  return String(text ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+}
+
+export function textToHtml(name, text) {
+  const paragraphs = String(text ?? '').replace(/\r/g, '').split(/\n{2,}/).map((block) => block.trim()).filter(Boolean)
+  const body = paragraphs.map((block) => `<p>${escapeText(block).replace(/\n/g, '<br>')}</p>`).join('')
+  return `<h1>${escapeText(name)}</h1>${body || '<p></p>'}`
 }
 
 export function parseCsv(text) {

@@ -1,6 +1,8 @@
 export function didPatchCanvas(kind, result) {
   if (!result || typeof result !== 'object') return false
-  if (kind === 'doc') return Boolean(result.html || result.appendHtml)
+  if (result.color) return true
+  if (result.selectionHtml) return true
+  if (kind === 'doc') return Boolean(result.html || result.appendHtml || result.selectionHtml)
   if (kind === 'sheet') {
     return (Array.isArray(result.cells) && result.cells.length > 0)
       || (Array.isArray(result.formats) && result.formats.length > 0)
@@ -9,7 +11,7 @@ export function didPatchCanvas(kind, result) {
     return Boolean(result.addSlide || result.updateSlide || result.notes)
       || (Array.isArray(result.slides) && result.slides.length > 0)
   }
-  if (kind === 'pdf') return Boolean(result.notes)
+  if (kind === 'pdf') return Boolean(result.notes || result.html || result.color)
   return false
 }
 

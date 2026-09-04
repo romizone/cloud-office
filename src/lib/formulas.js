@@ -140,7 +140,7 @@ function tokenize(src) {
       continue
     }
     const refMatch = s.slice(i).match(/^\$?[A-Za-z]+\$?\d+/)
-    if (refMatch && parseA1(refMatch[0].replace(/\$/g, ''))) {
+    if (refMatch && parseA1(refMatch[0].replace(/\$/g, '')) && s[i + refMatch[0].length] !== '(') {
       tokens.push({ k: 'ref', v: refMatch[0].replace(/\$/g, '').toUpperCase() })
       i += refMatch[0].length
       continue
@@ -220,7 +220,7 @@ function parse(tokens) {
 
   function power() {
     let node = unary()
-    if (eat('^')) node = { k: 'bin', op: '^', a: node, b: unary() }
+    while (eat('^')) node = { k: 'bin', op: '^', a: node, b: unary() }
     return node
   }
 
@@ -285,6 +285,7 @@ function parse(tokens) {
   }
 
   const ast = comparison()
+  if (i < tokens.length) return { k: 'err', v: ERRORS.value }
   return ast
 }
 
@@ -342,6 +343,7 @@ function rangeCells(a, b) {
 
 function evalAst(node, ctx) {
   if (!node) return num(0)
+  if (node.k === 'err') return err(node.v)
   if (node.k === 'num') return num(node.v)
   if (node.k === 'str') return str(node.v)
   if (node.k === 'bool') return bool(node.v)
@@ -419,7 +421,21 @@ function callFn(name, args, ctx, rawArgs) {
     if (typeof p === 'object') return p
     return num(n ** p)
   }
-  if (fn === 'IF') return truthy(args[0]) ? (args[1] ?? bool(true)) : (args[2] ?? bool(false))
+  if (fn === 'LOG10' || fn === 'LN' || fn === 'EXP' || fn === 'LOG') {
+    const n = asNumber(args[0])
+    if (typeof n === 'object') return n
+    if (fn === 'EXP') return num(Math.exp(n))
+    if (n <= 0) return err(ERRORS.value)
+    if (fn === 'LN') return num(Math.log(n))
+    if (fn === 'LOG10') return num(Math.log10(n))
+    const base = asNumber(args[1] || num(10))
+    if (typeof base === 'object') return base
+    return base <= 0 || base === 1 ? err(ERRORS.value) : num(Math.log(n) / Math.log(base))
+  }
+  if (fn === 'IF') {
+    if (args[0]?.t === 'e') return args[0]
+    return truthy(args[0]) ? (args[1] ?? bool(true)) : (args[2] ?? bool(false))
+  }
   if (fn === 'AND') return bool(args.every(truthy))
   if (fn === 'OR') return bool(args.some(truthy))
   if (fn === 'NOT') return bool(!truthy(args[0]))
@@ -429,7 +445,11 @@ function callFn(name, args, ctx, rawArgs) {
   if (fn === 'UPPER') return str(asString(args[0]).toUpperCase())
   if (fn === 'LOWER') return str(asString(args[0]).toLowerCase())
   if (fn === 'PROPER') return str(asString(args[0]).toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase()))
-  if (fn === 'LEFT') return str(asString(args[0]).slice(0, asNumber(args[1] || num(1)) || 1))
+  if (fn === 'LEFT') {
+    const n = asNumber(args[1] || num(1))
+    if (typeof n === 'object') return n
+    return str(asString(args[0]).slice(0, Math.max(0, n)))
+  }
   if (fn === 'RIGHT') {
     const s = asString(args[0])
     const n = asNumber(args[1] || num(1))

@@ -19,14 +19,31 @@ function hydrateEnv(rootDir) {
   }
 }
 
+const MAX_BODY_BYTES = 1_000_000
+
 function readBody(req) {
   return new Promise((resolveBody, reject) => {
     const chunks = []
-    req.on('data', (chunk) => chunks.push(chunk))
+    let size = 0
+    req.on('data', (chunk) => {
+      size += chunk.length
+      if (size > MAX_BODY_BYTES) {
+        const error = new Error('Konteks terlalu besar untuk dikirim ke Copilot.')
+        error.status = 413
+        error.code = 'too_large'
+        req.destroy()
+        reject(error)
+        return
+      }
+      chunks.push(chunk)
+    })
     req.on('end', () => {
       try {
         resolveBody(JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}'))
-      } catch (error) {
+      } catch {
+        const error = new Error('Body permintaan bukan JSON yang valid.')
+        error.status = 400
+        error.code = 'bad_json'
         reject(error)
       }
     })

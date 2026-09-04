@@ -1,11 +1,12 @@
 import { useState } from 'react'
 
-export function Ribbon({ tabs, accent = 'teal' }) {
+export function Ribbon({ tabs, accent = 'word', onFile }) {
   const [active, setActive] = useState(tabs[0]?.id)
   const current = tabs.find((tab) => tab.id === active) || tabs[0]
   return (
     <div className={`ribbon ribbon-${accent}`}>
       <div className="ribbon-tabs" role="tablist">
+        <button className="file-tab" type="button" onClick={() => onFile?.()}>File</button>
         {tabs.map((tab) => (
           <button
             key={tab.id}

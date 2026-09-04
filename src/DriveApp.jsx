@@ -1,78 +1,137 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
-  Archive, ArrowUpRight, Bell, Check, ChevronDown, Cloud, Copy,
-  FileChartColumn, FilePlus2, FileText, Grid2X2, LayoutDashboard, Library, Menu,
-  MoreHorizontal, Presentation, Search, Settings, Sparkles, Star, Table2, Upload,
-  Users, Zap
+  Archive, Copy, Home, MoreHorizontal, Share2, Star, Upload, Users
 } from 'lucide-react'
+import FluentShell from './components/FluentShell.jsx'
 import AgentPanel from './components/AgentPanel.jsx'
-import { blankFormats, createFile, fileHash, formatRelative, parseCsv, typeLabel } from './lib/files.js'
+import ShareDialog from './components/ShareDialog.jsx'
+import { AppIcon, CopilotMark, ExcelIcon, OneDriveIcon, PowerPointIcon, WordIcon } from './components/MsApps.jsx'
+import { APP_NAME, EXT, USER, greeting } from './lib/brand.js'
+import { createFile, escapeText, fileHash, formatRelative, parseCsv, blankFormats, textToHtml } from './lib/files.js'
 
-const templates = [
-  { type: 'doc', title: 'Dokumen kosong', detail: 'Mulai menulis dari awal', icon: FileText },
-  { type: 'sheet', title: 'Spreadsheet kosong', detail: 'Hitung di sel, unduh Excel', icon: Table2 },
-  { type: 'slides', title: 'Presentasi kosong', detail: 'Susun cerita visual', icon: Presentation },
-  { type: 'pdf', title: 'PDF kosong', detail: 'Baca, tandai, isi formulir', icon: FileChartColumn },
+const CREATE = [
+  { type: 'doc', title: 'Dokumen Word', detail: 'Word for the web', icon: WordIcon },
+  { type: 'sheet', title: 'Buku kerja Excel', detail: 'Excel for the web', icon: ExcelIcon },
+  { type: 'slides', title: 'Presentasi PowerPoint', detail: 'PowerPoint for the web', icon: PowerPointIcon },
+  { type: 'pdf', title: 'PDF', detail: 'Baca dan tandai di browser', icon: null },
 ]
 
-const icons = { doc: FileText, sheet: Table2, slides: Presentation, pdf: FileChartColumn }
-const tones = { doc: 'blue', sheet: 'green', slides: 'orange', pdf: 'red' }
+const BINARY_TYPES = { doc: 'doc', docx: 'doc', xls: 'sheet', xlsx: 'sheet', ppt: 'slides', pptx: 'slides', pdf: 'pdf' }
 
-export default function DriveApp({ files, onOpen, onCreate, onPatch, onNotify }) {
-  const [activeNav, setActiveNav] = useState('Beranda')
+function stripScripts(html) {
+  return String(html || '')
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/\son\w+="[^"]*"/gi, '')
+    .replace(/\son\w+='[^']*'/gi, '')
+}
+
+function copyText(text, onNotify, okText) {
+  if (!navigator.clipboard?.writeText) {
+    onNotify('Tautan tidak dapat disalin di browser ini')
+    return
+  }
+  navigator.clipboard.writeText(text).then(() => onNotify(okText), () => onNotify('Tautan tidak dapat disalin'))
+}
+
+export default function DriveApp({ files, onOpen, onCreate, onPatch, onNotify, view = 'home' }) {
+  const [activeNav, setActiveNav] = useState(view === 'onedrive' || view === 'sharepoint' ? view : 'home')
   const [query, setQuery] = useState('')
-  const [showAssistant, setShowAssistant] = useState(true)
-  const [showCreateMenu, setShowCreateMenu] = useState(false)
-  const [showWorkspaceMenu, setShowWorkspaceMenu] = useState(false)
-  const [showNotifications, setShowNotifications] = useState(false)
-  const [viewMode, setViewMode] = useState('list')
+  const [showAssistant, setShowAssistant] = useState(view === 'home')
+  const [viewMode] = useState('list')
   const [selectedFile, setSelectedFile] = useState(null)
-  const [mobileMenu, setMobileMenu] = useState(false)
+  const [shareFile, setShareFile] = useState(null)
   const fileInput = useRef(null)
+  const tableRef = useRef(null)
 
+  useEffect(() => {
+    if (view === 'onedrive' || view === 'sharepoint') setActiveNav(view)
+    if (view === 'home' || view === 'apps') setActiveNav('home')
+  }, [view])
+
+  useEffect(() => {
+    if (!selectedFile) return undefined
+    const close = (event) => {
+      if (!event.target.closest?.('.row-actions')) setSelectedFile(null)
+    }
+    const onKey = (event) => { if (event.key === 'Escape') setSelectedFile(null) }
+    document.addEventListener('mousedown', close)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', close)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [selectedFile])
+
+  const q = query.trim().toLowerCase()
   const filtered = files.filter((file) => {
-    if (activeNav === 'Sampah') return file.trashed
-    if (file.trashed) return false
-    if (activeNav === 'Favorit') return file.favorite
-    if (query && !file.name.toLowerCase().includes(query.toLowerCase())) return false
+    if (activeNav === 'trash' ? !file.trashed : file.trashed) return false
+    if (activeNav === 'fav' && !file.favorite) return false
+    if (activeNav === 'shared' && !file.shared) return false
+    if (q && !`${file.name}.${EXT[file.type]}`.toLowerCase().includes(q)) return false
     return true
   })
 
   const uploadFile = async (event) => {
     const blob = event.target.files?.[0]
-    if (!blob) return
-    const name = blob.name.replace(/\.[^.]+$/, '')
-    const ext = blob.name.split('.').pop()?.toLowerCase()
-    if (ext === 'csv') {
-      const text = await blob.text()
-      const file = createFile('sheet', name)
-      file.content.sheets[0].cells = parseCsv(text)
-      file.content.sheets[0].name = name
-      file.content.sheets[0].formats = blankFormats()
-      onCreate(file)
-    } else if (['txt', 'html', 'htm', 'md'].includes(ext)) {
-      const text = await blob.text()
-      const file = createFile('doc', name)
-      file.content.html = ext === 'html' || ext === 'htm' ? text : `<h1>${name}</h1><p>${text.replace(/\n/g, '</p><p>')}</p>`
-      onCreate(file)
-    } else {
-      onNotify(`${blob.name} ditambahkan ke Drive`)
-    }
     event.target.value = ''
+    if (!blob) return
+    const name = blob.name.replace(/\.[^.]+$/, '') || 'Unggahan'
+    const ext = blob.name.split('.').pop()?.toLowerCase()
+    try {
+      if (ext === 'csv' || ext === 'tsv') {
+        const text = await blob.text()
+        const file = createFile('sheet', name)
+        file.content.sheets[0].cells = parseCsv(ext === 'tsv' ? text.replace(/\t/g, ',') : text)
+        file.content.sheets[0].name = name.slice(0, 31)
+        file.content.sheets[0].formats = blankFormats()
+        onCreate(file)
+      } else if (['txt', 'md', 'markdown'].includes(ext)) {
+        const text = await blob.text()
+        const file = createFile('doc', name)
+        file.content.html = textToHtml(name, text)
+        onCreate(file)
+      } else if (['html', 'htm'].includes(ext)) {
+        const text = await blob.text()
+        const body = text.match(/<body[^>]*>([\s\S]*?)<\/body>/i)?.[1] ?? text
+        const file = createFile('doc', name)
+        file.content.html = stripScripts(body)
+        onCreate(file)
+      } else if (BINARY_TYPES[ext]) {
+        const type = BINARY_TYPES[ext]
+        const file = createFile(type, name)
+        if (type === 'doc') {
+          file.content.html = `<h1>${escapeText(name)}</h1><p>File <b>${escapeText(blob.name)}</b> diunggah ke OneDrive. Isi biner .${ext} belum bisa dibaca di browser ini; tulis ulang isinya di sini atau unggah versi .txt/.html.</p>`
+        }
+        onCreate(file)
+        onNotify(`${blob.name} ditambahkan ke OneDrive sebagai ${APP_NAME[type]}`)
+      } else {
+        onNotify(`Format .${ext || '?'} belum didukung. Unggah .txt, .md, .html, .csv, atau file Office.`)
+      }
+    } catch {
+      onNotify(`${blob.name} tidak dapat dibaca`)
+    }
   }
 
-  const getHomeContext = () => ({
-    files: files.filter((f) => !f.trashed).map((f) => ({ name: f.name, type: f.type })),
-  })
+  const nav = [
+    { id: 'home', label: 'Beranda', icon: <Home size={16} /> },
+    { id: 'copilot', label: 'Copilot', icon: <CopilotMark size={16} /> },
+    { id: 'onedrive', label: 'OneDrive', icon: <OneDriveIcon size={18} /> },
+    { id: 'shared', label: 'Dibagikan', icon: <Users size={16} /> },
+    { id: 'fav', label: 'Favorit', icon: <Star size={16} /> },
+    { id: 'trash', label: 'Sampah', icon: <Archive size={16} /> },
+  ]
 
-  const applyHome = async () => {}
+  const onNav = (item) => {
+    if (item.id === 'copilot') { location.hash = '#/copilot'; return }
+    setActiveNav(item.id)
+  }
 
   const askHome = async (prompt) => {
-    const q = prompt.toLowerCase()
-    if (q.includes('presentasi') || q.includes('outline') || q.includes('dek')) {
+    const lower = prompt.toLowerCase()
+    if (lower.includes('presentasi') || lower.includes('outline') || lower.includes('dek')) {
       const file = createFile('slides', 'Outline presentasi')
       file.content.slides = [
-        { ...file.content.slides[0], title: 'Outline dari agen', subtitle: prompt, kicker: 'AGEN' },
+        { ...file.content.slides[0], title: 'Outline dari Copilot', subtitle: prompt, kicker: 'MICROSOFT 365' },
         {
           id: 'agenda-home',
           layout: 'content',
@@ -83,226 +142,172 @@ export default function DriveApp({ files, onOpen, onCreate, onPatch, onNotify })
         },
       ]
       onCreate(file)
-      return { message: 'Saya membuat presentasi baru berisi kerangka dek. Silakan buka dan lanjutkan dari sana.' }
+      return { message: 'Saya membuat presentasi PowerPoint baru. Buka file, lalu lanjutkan dengan Copilot di kanan.' }
     }
-    if (q.includes('analisis') || q.includes('spreadsheet') || q.includes('angka')) {
+    if (lower.includes('analisis') || lower.includes('spreadsheet') || lower.includes('angka') || lower.includes('excel')) {
       const sheet = files.find((f) => f.type === 'sheet' && !f.trashed)
       if (sheet) {
         onOpen(sheet)
-        return { message: `Membuka ${sheet.name}. Minta agen di dalam spreadsheet untuk menulis catatan analisis.` }
+        return { message: `Membuka ${sheet.name} di Excel. Minta Copilot menulis rumus di dalam workbook.` }
+      }
+    }
+    if (lower.includes('baru') || lower.includes('terbaru') || lower.includes('apa yang')) {
+      const recent = files.filter((f) => !f.trashed).slice().sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt)).slice(0, 3)
+      if (recent.length) {
+        return { message: `Terbaru: ${recent.map((f) => `${f.name} (${APP_NAME[f.type]}, ${formatRelative(f.updatedAt).toLowerCase()})`).join('; ')}.`, applied: false }
       }
     }
     const doc = files.find((f) => f.type === 'doc' && !f.trashed)
     if (doc) {
       onOpen(doc)
-      return { message: `Membuka ${doc.name} agar agen bisa bekerja di dalam dokumen.` }
+      return { message: `Membuka ${doc.name} di Word agar Copilot bisa mengedit di kanvas.` }
     }
-    return { message: 'Buat Docs, Sheets, atau Slides baru, lalu brief agen di samping file itu.' }
+    return { message: 'Buat Word, Excel, atau PowerPoint, lalu brief Copilot di samping file itu.', applied: false }
   }
 
+  const heading = {
+    home: ['Beranda Microsoft 365', 'Aplikasi web F3 · Word, Excel, PowerPoint, Outlook, Teams'],
+    onedrive: ['File saya', 'OneDrive · 2 GB · Microsoft 365 F3'],
+    sharepoint: ['Situs tim', 'SharePoint · Pustaka dokumen Northstar'],
+    shared: ['Dibagikan', 'File yang Anda bagikan ke orang lain'],
+    fav: ['Favorit', 'File yang Anda sematkan'],
+    trash: ['Sampah', 'Pulihkan atau biarkan di sini'],
+  }[activeNav] || ['Beranda Microsoft 365', '']
+
+  const linkFor = (file) => `${location.origin}${location.pathname}${fileHash(file)}`
+
   return (
-    <div className="app-shell">
-      <aside className={`sidebar ${mobileMenu ? 'is-open' : ''}`}>
-        <div className="brand">
-          <span className="brand-mark"><Cloud size={18} strokeWidth={2.5} /></span>
-          <span>cloud<span className="brand-light">office</span></span>
-        </div>
-        <div className="workspace-wrap">
-          <button className="workspace-switcher" onClick={() => setShowWorkspaceMenu(!showWorkspaceMenu)}>
-            <span className="workspace-avatar">N</span>
-            <span><strong>Northstar Studio</strong><small>Workspace pribadi</small></span>
-            <ChevronDown size={15} />
-          </button>
-          {showWorkspaceMenu && (
-            <div className="workspace-menu">
-              <button onClick={() => { setShowWorkspaceMenu(false); onNotify('Northstar Studio dipilih') }}>
-                <span className="workspace-avatar">N</span>
-                <span><strong>Northstar Studio</strong><small>Workspace pribadi</small></span>
-                <Check size={14} />
-              </button>
-              <button onClick={() => { setShowWorkspaceMenu(false); onNotify('Fitur membuat workspace segera hadir') }}>
-                <FilePlus2 size={15} /> Buat workspace baru
-              </button>
-            </div>
-          )}
-        </div>
-        <nav className="nav-list">
-          <p className="nav-label">Workspace</p>
-          {[['Beranda', LayoutDashboard], ['Drive saya', Library], ['Dibagikan', Users], ['Favorit', Star], ['Sampah', Archive]].map(([label, Icon]) => (
-            <button key={label} className={`nav-item ${activeNav === label ? 'active' : ''}`} onClick={() => { setActiveNav(label); setMobileMenu(false) }}>
-              <Icon size={17} /><span>{label}</span>
-              {label === 'Favorit' && <em>{files.filter((f) => f.favorite && !f.trashed).length}</em>}
-            </button>
-          ))}
-          <p className="nav-label second">Aplikasi</p>
-          <button className="nav-item" onClick={() => onCreate(createFile('doc'))}><FileText size={17} /><span>Docs</span></button>
-          <button className="nav-item" onClick={() => onCreate(createFile('sheet'))}><Table2 size={17} /><span>Sheets</span></button>
-          <button className="nav-item" onClick={() => onCreate(createFile('slides'))}><Presentation size={17} /><span>Slides</span></button>
-        </nav>
-        <div className="sidebar-bottom">
-          <div className="storage-label"><span><Cloud size={15} /> Penyimpanan</span><strong>12%</strong></div>
-          <div className="storage-bar"><i style={{ width: '12%' }} /></div>
-          <small>File tersimpan di perangkat Anda</small>
-          <button className="upgrade"><Zap size={14} fill="currentColor" /> Empat aplikasi, satu workspace <ArrowUpRight size={14} /></button>
-          <button className="settings" onClick={() => onNotify('Pengaturan workspace segera hadir')}><Settings size={16} /> Pengaturan</button>
-        </div>
-      </aside>
-
-      <main className="main-content">
-        <header className="topbar">
-          <button className="mobile-menu" onClick={() => setMobileMenu(!mobileMenu)}><Menu size={20} /></button>
-          <div className="breadcrumb"><span>{activeNav}</span><span className="slash">/</span><strong>Overview</strong></div>
-          <div className="top-actions">
-            <div className="search">
-              <Search size={16} />
-              <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Cari dokumen…" />
-              <kbd>⌘ K</kbd>
-            </div>
-            <div className="notification-wrap">
-              <button className="icon-button" onClick={() => setShowNotifications(!showNotifications)}><Bell size={18} /><i /></button>
-              {showNotifications && (
-                <div className="notification-popover">
-                  <strong>Notifikasi</strong>
-                  <p><span className="dot" /> File tersimpan secara lokal di browser ini</p>
-                  <p><span className="dot" /> Agen mengedit di dalam Docs, Sheets, dan Slides</p>
-                  <button onClick={() => { setShowNotifications(false); onNotify('Semua notifikasi ditandai sudah dibaca') }}>Tandai sudah dibaca</button>
-                </div>
-              )}
-            </div>
-            <div className="user-avatar">RS</div>
-          </div>
-        </header>
-
-        <div className="content-wrap">
-          <section className="welcome">
-            <div>
-              <p className="eyebrow">{new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).toUpperCase()}</p>
-              <h1>Selamat datang, Rominur<span>.</span></h1>
-              <p className="welcome-copy">Docs, Sheets, dan Slides di browser — agen bekerja di dalam file, bukan di jendela obrolan.</p>
-            </div>
-            <div className="welcome-actions">
-              <input ref={fileInput} className="hidden-input" type="file" accept=".doc,.docx,.txt,.html,.xls,.xlsx,.csv,.ppt,.pptx,.pdf" onChange={uploadFile} />
-              <button className="outline-button" onClick={() => fileInput.current?.click()}><Upload size={16} /> Unggah file</button>
-              <div className="create-wrap">
-                <button className="primary-button" onClick={() => setShowCreateMenu(!showCreateMenu)}>
-                  <FilePlus2 size={17} /> Buat baru <ChevronDown size={15} />
-                </button>
-                {showCreateMenu && (
-                  <div className="create-menu">
-                    {templates.map(({ title, type, icon: Icon }) => (
-                      <button key={type} onClick={() => { setShowCreateMenu(false); onCreate(createFile(type)) }}>
-                        <Icon size={15} /> {title}
-                      </button>
-                    ))}
-                  </div>
-                )}
+    <FluentShell
+      app="home"
+      nav={nav}
+      activeNav={activeNav === 'sharepoint' ? 'onedrive' : activeNav}
+      onNav={onNav}
+      search={query}
+      onSearch={setQuery}
+      onCreate={onCreate}
+      onNotify={onNotify}
+      right={showAssistant ? (
+        <AgentPanel kind="home" app="Microsoft 365" onClose={() => setShowAssistant(false)} getContext={() => ({ files: files.filter((f) => !f.trashed).map((f) => ({ name: f.name, type: f.type, updatedAt: f.updatedAt })) })} onApply={async () => false} onAsk={askHome} />
+      ) : null}
+    >
+      <div className="m365-home">
+        {activeNav === 'home' && (
+          <>
+            <section className="m365-welcome">
+              <div>
+                <p className="eyebrow">{new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
+                <h1>{greeting()}, {USER.short}</h1>
+                <p>Microsoft 365 F3 · aplikasi web Word, Excel, PowerPoint, Outlook, dan Teams. Copilot bekerja di dalam file.</p>
               </div>
-            </div>
-          </section>
-
-          {activeNav !== 'Sampah' && activeNav !== 'Aktivitas' && (
-            <section className="quick-create">
-              <div className="section-heading">
-                <div>
-                  <h2>Empat aplikasi, bukan empat kotak chat</h2>
-                  <p>Buka file asli. Brief agen. Dapatkan dokumen jadi.</p>
-                </div>
-              </div>
-              <div className="template-grid">
-                {templates.map(({ type, title, detail, icon: Icon }) => (
-                  <button key={type} className={`template-card ${type}`} onClick={() => onCreate(createFile(type))}>
-                    <span className="template-icon"><Icon size={21} /></span>
-                    <span className="template-copy"><strong>{title}</strong><small>{detail}</small></span>
-                    <span className="card-arrow"><ArrowUpRight size={15} /></span>
+              <button className="copilot-cta" onClick={() => { location.hash = '#/copilot' }}>
+                <CopilotMark size={22} /> Tanya Copilot
+              </button>
+            </section>
+            <section>
+              <div className="section-heading"><h2>Buat baru</h2></div>
+              <div className="create-row">
+                {CREATE.map((item) => (
+                  <button key={item.type} className="create-tile" onClick={() => onCreate(createFile(item.type))}>
+                    {item.icon ? <item.icon size={36} /> : <AppIcon app="pdf" size={36} />}
+                    <span><b>{item.title}</b><small>{item.detail}</small></span>
                   </button>
                 ))}
               </div>
             </section>
-          )}
+            <section>
+              <div className="section-heading"><h2>Aplikasi</h2></div>
+              <div className="apps-row">
+                {[
+                  ['word', 'Word', () => onCreate(createFile('doc'))],
+                  ['excel', 'Excel', () => onCreate(createFile('sheet'))],
+                  ['powerpoint', 'PowerPoint', () => onCreate(createFile('slides'))],
+                  ['outlook', 'Outlook', () => { location.hash = '#/outlook' }],
+                  ['teams', 'Teams', () => { location.hash = '#/teams' }],
+                  ['onedrive', 'OneDrive', () => setActiveNav('onedrive')],
+                  ['copilot', 'Copilot', () => { location.hash = '#/copilot' }],
+                  ['sharepoint', 'SharePoint', () => setActiveNav('sharepoint')],
+                ].map(([id, label, run]) => (
+                  <button key={id} className="app-tile" onClick={run}>
+                    <AppIcon app={id} size={40} />
+                    <span>{label}</span>
+                  </button>
+                ))}
+              </div>
+            </section>
+          </>
+        )}
 
-          <section className="files-section">
-            <div className="section-heading">
-              <div>
-                <h2>{activeNav === 'Sampah' ? 'Sampah' : activeNav === 'Favorit' ? 'Favorit' : 'File di workspace'}</h2>
-                <p>{activeNav === 'Sampah' ? 'Pulihkan atau biarkan di sini' : 'Klik untuk membuka di Docs, Sheets, atau Slides'}</p>
-              </div>
-              <div className="view-toggle">
-                <button className={viewMode === 'grid' ? 'selected' : ''} onClick={() => setViewMode('grid')}><Grid2X2 size={15} /></button>
-                <button className={viewMode === 'list' ? 'selected' : ''} onClick={() => setViewMode('list')}><FileText size={15} /></button>
-              </div>
-            </div>
-            <div className={`file-table ${viewMode === 'grid' ? 'grid-view' : ''}`}>
-              <div className="table-head"><span>Nama</span><span>Pemilik</span><span>Terakhir diedit</span><span></span></div>
-              {filtered.map((file) => {
-                const Icon = icons[file.type]
-                return (
-                  <div className="file-row" key={file.id} onClick={() => !file.trashed && onOpen(file)}>
-                    <div className="file-name">
-                      <span className={`file-icon ${tones[file.type]}`}><Icon size={18} /></span>
-                      <span>
-                        <strong>{file.name}</strong>
-                        <small>{typeLabel(file.type)}</small>
-                      </span>
-                    </div>
-                    <div className="owner"><span className="mini-avatar">{file.owner}</span> Rominur</div>
-                    <span className="edited">{formatRelative(file.updatedAt)}</span>
-                    <div className="row-actions" onClick={(event) => event.stopPropagation()}>
-                      <button onClick={() => onPatch({ ...file, favorite: !file.favorite })}>
-                        <Star size={15} fill={file.favorite ? 'currentColor' : 'none'} />
-                      </button>
-                      <button onClick={() => setSelectedFile(selectedFile === file.id ? null : file.id)}><MoreHorizontal size={17} /></button>
-                      {selectedFile === file.id && (
-                        <div className="file-menu">
-                          {!file.trashed && <button onClick={() => { setSelectedFile(null); onOpen(file) }}><FileText size={14} /> Buka</button>}
-                          <button onClick={() => { setSelectedFile(null); onNotify('Tautan berhasil disalin'); navigator.clipboard?.writeText(`${location.origin}${location.pathname}${fileHash(file)}`) }}><Copy size={14} /> Salin tautan</button>
-                          <button onClick={() => { setSelectedFile(null); onPatch({ ...file, trashed: !file.trashed }) }}>
-                            <Archive size={14} /> {file.trashed ? 'Pulihkan' : 'Pindahkan ke sampah'}
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )
-              })}
-              {filtered.length === 0 && <div className="empty-state">Tidak ada file di sini.</div>}
+        {activeNav === 'sharepoint' && (
+          <section className="sp-banner">
+            <div>
+              <p className="eyebrow">SHAREPOINT</p>
+              <h1>Situs tim Northstar</h1>
+              <p>Pustaka dokumen terhubung ke OneDrive F3. Buka file di Word, Excel, atau PowerPoint for the web.</p>
             </div>
           </section>
+        )}
 
-          <section className="bottom-grid">
-            <div className="activity-card">
-              <div className="section-heading">
-                <div><h2>Aktivitas terbaru</h2><p>Jejak kerja di workspace ini</p></div>
-              </div>
-              {files.filter((f) => !f.trashed).slice(0, 3).map((file) => (
-                <div className="activity-item" key={file.id}>
-                  <span className="activity-avatar teal">{file.owner}</span>
-                  <p><strong>Anda</strong> menyimpan <b>{file.name}</b><small>{formatRelative(file.updatedAt)}</small></p>
+        <section className="files-section">
+          <div className="section-heading">
+            <div>
+              <h2>{activeNav === 'home' ? 'Terbaru' : heading[0]}</h2>
+              <p>{heading[1]}</p>
+            </div>
+            <div className="file-tools">
+              <input ref={fileInput} className="hidden-input" type="file" accept=".doc,.docx,.txt,.md,.html,.htm,.xls,.xlsx,.csv,.tsv,.ppt,.pptx,.pdf" onChange={uploadFile} />
+              <button className="ghost" onClick={() => fileInput.current?.click()}><Upload size={15} /> Unggah</button>
+            </div>
+          </div>
+          <div className={`file-table ${viewMode === 'grid' ? 'grid-view' : ''}`} ref={tableRef}>
+            <div className="table-head"><span>Nama</span><span>Aplikasi</span><span>Diubah</span><span /></div>
+            {filtered.map((file) => (
+              <div
+                className="file-row"
+                key={file.id}
+                role="button"
+                tabIndex={0}
+                onClick={() => !file.trashed && onOpen(file)}
+                onKeyDown={(event) => { if (event.key === 'Enter' && !file.trashed) onOpen(file) }}
+              >
+                <div className="file-name">
+                  <AppIcon app={file.type} size={28} />
+                  <span>
+                    <strong>{file.name}.{EXT[file.type]}</strong>
+                    <small>{APP_NAME[file.type]} · {USER.name}{file.shared ? ' · dibagikan' : ''}</small>
+                  </span>
                 </div>
-              ))}
-            </div>
-            <div className="tip-card">
-              <div className="tip-icon"><Sparkles size={19} /></div>
-              <p className="eyebrow">DEEPROMEO</p>
-              <h3>Brief sekali. Dapatkan file jadi.</h3>
-              <p>Buka Docs, Sheets, atau Slides. Copilot di kanan file merangkum, menghitung, atau menambah slide — di dalam dokumen yang terbuka.</p>
-              <button onClick={() => setShowAssistant(true)}>Buka Copilot <ArrowUpRight size={15} /></button>
-            </div>
-          </section>
-        </div>
-      </main>
-
-      {showAssistant && (
-        <AgentPanel
-          kind="home"
-          onClose={() => setShowAssistant(false)}
-          getContext={getHomeContext}
-          onApply={applyHome}
-          onAsk={askHome}
+                <div className="owner">{APP_NAME[file.type]}</div>
+                <span className="edited">{formatRelative(file.updatedAt)}</span>
+                <div className="row-actions" onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
+                  <button onClick={() => onPatch({ ...file, favorite: !file.favorite })} aria-label={file.favorite ? 'Hapus dari favorit' : 'Tambah ke favorit'}><Star size={15} fill={file.favorite ? 'currentColor' : 'none'} /></button>
+                  <button onClick={() => setShareFile(file)} aria-label="Bagikan"><Share2 size={15} /></button>
+                  <button onClick={() => setSelectedFile(selectedFile === file.id ? null : file.id)} aria-label="Menu lainnya" aria-expanded={selectedFile === file.id}><MoreHorizontal size={17} /></button>
+                  {selectedFile === file.id && (
+                    <div className="file-menu">
+                      {!file.trashed && <button onClick={() => { setSelectedFile(null); onOpen(file) }}>Buka</button>}
+                      <button onClick={() => { setSelectedFile(null); copyText(linkFor(file), onNotify, 'Tautan disalin') }}><Copy size={14} /> Salin tautan</button>
+                      <button onClick={() => { setSelectedFile(null); onPatch({ ...file, trashed: !file.trashed }); onNotify(file.trashed ? 'File dipulihkan' : 'Dipindahkan ke sampah') }}>
+                        {file.trashed ? 'Pulihkan' : 'Pindahkan ke sampah'}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+            {filtered.length === 0 && <div className="empty-state">{q ? `Tidak ada file yang cocok dengan “${query.trim()}”.` : 'Tidak ada file di sini.'}</div>}
+          </div>
+        </section>
+      </div>
+      {shareFile && (
+        <ShareDialog
+          title={`${shareFile.name}.${EXT[shareFile.type]}`}
+          link={linkFor(shareFile)}
+          onClose={() => setShareFile(null)}
+          onNotify={onNotify}
+          onShared={() => onPatch({ ...shareFile, shared: true })}
         />
       )}
-      {!showAssistant && (
-        <button className="ai-fab" onClick={() => setShowAssistant(true)}><Sparkles size={19} /> Copilot</button>
-      )}
-    </div>
+      {!showAssistant && <button className="ai-fab" onClick={() => setShowAssistant(true)}><CopilotMark size={18} /> Copilot</button>}
+    </FluentShell>
   )
 }
