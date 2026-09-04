@@ -31,10 +31,10 @@ const SEED = [
     body: 'Halo,\n\nWorkbook Excel Budget Operasional Q3 sudah di OneDrive. Tolong Copilot menambahkan baris total dan format Rupiah sebelum rapat Kamis.\n\nSari',
   },
   {
-    id: 'm3', folder: 'inbox', unread: false, from: 'Microsoft 365', email: 'noreply@microsoft.com', initials: 'M3',
-    subject: 'Lisensi Microsoft 365 F3 aktif', time: 'Sen',
+    id: 'm3', folder: 'inbox', unread: false, from: 'Office Romeo', email: 'noreply@officeromeo.id', initials: 'M3',
+    subject: 'Lisensi Office Romeo F3 aktif', time: 'Sen',
     preview: 'Word, Excel, PowerPoint, Outlook, dan Teams web sudah siap. OneDrive 2 GB.',
-    body: 'Langganan Microsoft 365 F3 Anda aktif.\n\nTermasuk aplikasi web Word, Excel, PowerPoint, Outlook, Teams, dan OneDrive 2 GB. Copilot dapat dipakai di dalam file yang terbuka.',
+    body: 'Langganan Office Romeo F3 Anda aktif.\n\nTermasuk aplikasi web Word, Excel, PowerPoint, Outlook, Teams, dan OneDrive 2 GB. Copilot dapat dipakai di dalam file yang terbuka.',
   },
   {
     id: 'm4', folder: 'sent', unread: false, from: USER.name, email: USER.email, initials: USER.initials,
@@ -171,7 +171,7 @@ export default function OutlookApp({ onNotify }) {
         <div className="outlook-cal">
           <header className="app-page-head">
             <OutlookIcon size={28} />
-            <div><h1>Kalender</h1><p>Hari ini · Microsoft 365 F3</p></div>
+            <div><h1>Kalender</h1><p>Hari ini · Office Romeo F3</p></div>
           </header>
           {EVENTS.map((event) => (
             <div className="cal-row" key={event.title}>

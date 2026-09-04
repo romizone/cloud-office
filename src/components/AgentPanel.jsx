@@ -9,10 +9,10 @@ const APP_LABEL = {
   sheet: 'Excel',
   slides: 'PowerPoint',
   pdf: 'PDF',
-  home: 'Microsoft 365',
+  home: 'Office Romeo',
   outlook: 'Outlook',
   teams: 'Teams',
-  work: 'Microsoft 365',
+  work: 'Office Romeo',
 }
 
 const SUGGESTIONS = {
@@ -72,7 +72,7 @@ export default function AgentPanel({ kind = 'home', app, onClose, onAsk, onApply
   const [mode, setMode] = useState('ask')
   const configuredRef = useRef(null)
   const bodyRef = useRef(null)
-  const label = app || APP_LABEL[kind] || 'Microsoft 365'
+  const label = app || APP_LABEL[kind] || 'Office Romeo'
 
   useEffect(() => {
     let alive = true

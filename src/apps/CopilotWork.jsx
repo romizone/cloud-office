@@ -59,7 +59,7 @@ export default function CopilotWork({ files, onOpen, onCreate, onNotify }) {
         if (doc) { onOpen(doc); reply = `Membuka ${doc.name} di Word. Copilot di kanan file bisa merangkum di kanvas.` }
         else reply = 'Buka Word, lalu minta Copilot merangkum dokumen yang terbuka.'
       } else {
-        reply = 'Saya Copilot Microsoft 365. Minta ringkasan file, draf email, atau buat Word/Excel/PowerPoint baru.'
+        reply = 'Saya Copilot Office Romeo. Minta ringkasan file, draf email, atau buat Word/Excel/PowerPoint baru.'
       }
     }
     if (!reply) reply = 'Siap. Buka file di Word, Excel, atau PowerPoint agar Copilot bisa mengedit di dalam dokumen.'
@@ -86,7 +86,7 @@ export default function CopilotWork({ files, onOpen, onCreate, onNotify }) {
         <div className="copilot-hero">
           <CopilotMark size={42} />
           <h1>{greeting()}, {USER.short}</h1>
-          <p>Copilot untuk Microsoft 365 F3 · bekerja di Word, Excel, PowerPoint, Outlook, dan Teams</p>
+          <p>Copilot untuk Office Romeo F3 · bekerja di Word, Excel, PowerPoint, Outlook, dan Teams</p>
         </div>
         <form className="copilot-composer" onSubmit={(event) => { event.preventDefault(); submit() }}>
           <Sparkles size={18} />

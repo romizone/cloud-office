@@ -11,7 +11,7 @@ export default function FluentShell({
   onNav,
   search,
   onSearch,
-  searchPlaceholder = 'Cari di Microsoft 365',
+  searchPlaceholder = 'Cari di Office Romeo',
   onCreate,
   onNotify,
   right,
@@ -71,7 +71,7 @@ export default function FluentShell({
         </div>
         <a className="fluent-brand" href="#/">
           <MsLogo size={18} />
-          <span>Microsoft 365</span>
+          <span>Office Romeo</span>
           <em>F3</em>
         </a>
         <div className="fluent-search">
@@ -84,7 +84,7 @@ export default function FluentShell({
             <span>Copilot</span>
           </a>
           <button className="fluent-icon" onClick={() => { setNotes((v) => !v); setProfile(false); setWaffle(false) }} aria-label="Notifikasi" aria-expanded={notes}><Bell size={18} />{!notes && <i />}</button>
-          <button className="fluent-icon" onClick={() => onNotify?.('Pengaturan Microsoft 365 F3')} aria-label="Pengaturan"><Settings size={18} /></button>
+          <button className="fluent-icon" onClick={() => onNotify?.('Pengaturan Office Romeo F3')} aria-label="Pengaturan"><Settings size={18} /></button>
           <button className="ms-avatar" onClick={() => { setProfile((v) => !v); setNotes(false); setWaffle(false) }} title={USER.email} aria-label="Akun" aria-expanded={profile}>{USER.initials}</button>
           {notes && (
             <div className="fluent-pop notes-pop">

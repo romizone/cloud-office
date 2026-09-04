@@ -131,7 +131,7 @@ export default function DriveApp({ files, onOpen, onCreate, onPatch, onNotify, v
     if (lower.includes('presentasi') || lower.includes('outline') || lower.includes('dek')) {
       const file = createFile('slides', 'Outline presentasi')
       file.content.slides = [
-        { ...file.content.slides[0], title: 'Outline dari Copilot', subtitle: prompt, kicker: 'MICROSOFT 365' },
+        { ...file.content.slides[0], title: 'Outline dari Copilot', subtitle: prompt, kicker: 'OFFICE ROMEO' },
         {
           id: 'agenda-home',
           layout: 'content',
@@ -166,13 +166,13 @@ export default function DriveApp({ files, onOpen, onCreate, onPatch, onNotify, v
   }
 
   const heading = {
-    home: ['Beranda Microsoft 365', 'Aplikasi web F3 · Word, Excel, PowerPoint, Outlook, Teams'],
-    onedrive: ['File saya', 'OneDrive · 2 GB · Microsoft 365 F3'],
+    home: ['Beranda Office Romeo', 'Aplikasi web F3 · Word, Excel, PowerPoint, Outlook, Teams'],
+    onedrive: ['File saya', 'OneDrive · 2 GB · Office Romeo F3'],
     sharepoint: ['Situs tim', 'SharePoint · Pustaka dokumen Northstar'],
     shared: ['Dibagikan', 'File yang Anda bagikan ke orang lain'],
     fav: ['Favorit', 'File yang Anda sematkan'],
     trash: ['Sampah', 'Pulihkan atau biarkan di sini'],
-  }[activeNav] || ['Beranda Microsoft 365', '']
+  }[activeNav] || ['Beranda Office Romeo', '']
 
   const linkFor = (file) => `${location.origin}${location.pathname}${fileHash(file)}`
 
@@ -187,7 +187,7 @@ export default function DriveApp({ files, onOpen, onCreate, onPatch, onNotify, v
       onCreate={onCreate}
       onNotify={onNotify}
       right={showAssistant ? (
-        <AgentPanel kind="home" app="Microsoft 365" onClose={() => setShowAssistant(false)} getContext={() => ({ files: files.filter((f) => !f.trashed).map((f) => ({ name: f.name, type: f.type, updatedAt: f.updatedAt })) })} onApply={async () => false} onAsk={askHome} />
+        <AgentPanel kind="home" app="Office Romeo" onClose={() => setShowAssistant(false)} getContext={() => ({ files: files.filter((f) => !f.trashed).map((f) => ({ name: f.name, type: f.type, updatedAt: f.updatedAt })) })} onApply={async () => false} onAsk={askHome} />
       ) : null}
     >
       <div className="m365-home">
@@ -197,7 +197,7 @@ export default function DriveApp({ files, onOpen, onCreate, onPatch, onNotify, v
               <div>
                 <p className="eyebrow">{new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
                 <h1>{greeting()}, {USER.short}</h1>
-                <p>Microsoft 365 F3 · aplikasi web Word, Excel, PowerPoint, Outlook, dan Teams. Copilot bekerja di dalam file.</p>
+                <p>Office Romeo F3 · aplikasi web Word, Excel, PowerPoint, Outlook, dan Teams. Copilot bekerja di dalam file.</p>
               </div>
               <button className="copilot-cta" onClick={() => { location.hash = '#/copilot' }}>
                 <CopilotMark size={22} /> Tanya Copilot

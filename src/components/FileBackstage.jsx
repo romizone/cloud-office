@@ -27,7 +27,7 @@ export default function FileBackstage({ kind, title, onClose, onHome, onPrint, o
       <section>
         <p className="eyebrow">INFO</p>
         <h2>{title}.{ext}</h2>
-        <p className="muted">Aplikasi web {app} · Microsoft 365 F3 · Simpan otomatis ke OneDrive</p>
+        <p className="muted">Aplikasi web {app} · Office Romeo F3 · Simpan otomatis ke OneDrive</p>
         <div className="backstage-cards">
           <button onClick={onExport}><Save size={18} /><span><b>Unduh salinan</b><small>{app} (.{ext})</small></span></button>
           <button onClick={onPrint}><Printer size={18} /><span><b>Cetak</b><small>Tata letak halaman web</small></span></button>

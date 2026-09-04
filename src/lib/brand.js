@@ -1,6 +1,6 @@
 export const TENANT = 'Northstar Studio'
 export const USER = { name: 'Rominur Ismanto', short: 'Rominur', initials: 'RI', email: 'rominur@northstar.id' }
-export const SKU = { name: 'Microsoft 365 F3', detail: 'Aplikasi web & seluler · OneDrive 2 GB' }
+export const SKU = { name: 'Office Romeo F3', detail: 'Aplikasi web & seluler · OneDrive 2 GB' }
 
 export const APPS = [
   { id: 'word', label: 'Word', route: '#/', create: 'doc', color: '#185ABD' },

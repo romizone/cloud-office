@@ -79,7 +79,7 @@ function blankSlide(layout = 'content') {
   return {
     id: newId('s'),
     layout,
-    kicker: 'MICROSOFT 365',
+    kicker: 'OFFICE ROMEO',
     title: layout === 'section' ? 'Bagian baru' : layout === 'title' ? 'Judul presentasi' : 'Judul slide',
     subtitle: 'Subtitel',
     body: 'Poin pertama\nPoin kedua\nPoin ketiga',
@@ -647,7 +647,7 @@ export default function SlidesEditor({ file, onChange, onBack, onNotify }) {
     if (q.includes('presentasi dari') || q.includes('buat presentasi')) {
       const topic = prompt.replace(/.*?(dari|tentang)\s*/i, '').trim() || 'briefing ini'
       const slides = [
-        { ...blankSlide('title'), kicker: 'MICROSOFT 365', title: escapeText(topic), subtitle: 'Disusun oleh Copilot' },
+        { ...blankSlide('title'), kicker: 'OFFICE ROMEO', title: escapeText(topic), subtitle: 'Disusun oleh Copilot' },
         { ...blankSlide('content'), kicker: 'AGENDA', title: 'Yang akan kita bahas', body: 'Konteks\nPendekatan\nBukti\nLangkah berikutnya' },
         { ...blankSlide('content'), kicker: 'KONTEKS', title: 'Masalah yang kita selesaikan', body: 'Situasi saat ini\nDampak bagi tim\nPeluang' },
         { ...blankSlide('section'), kicker: 'BERIKUTNYA', title: 'Langkah berikutnya', subtitle: 'Keputusan yang dibutuhkan dan pemiliknya' },

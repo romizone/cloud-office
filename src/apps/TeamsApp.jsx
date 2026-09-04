@@ -139,7 +139,7 @@ export default function TeamsApp({ onNotify }) {
               <header className="thread-head">
                 <div>
                   <strong>{CHANNELS.some((c) => c.id === room) ? `# ${title}` : title}</strong>
-                  <small>Copilot in Teams · Microsoft 365 F3</small>
+                  <small>Copilot in Teams · Office Romeo F3</small>
                 </div>
                 <button className="ghost" onClick={() => setShowCopilot(true)}><CopilotMark size={16} /> Copilot</button>
               </header>

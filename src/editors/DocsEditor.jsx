@@ -889,9 +889,9 @@ export default function DocsEditor({ file, onChange, onBack, onNotify }) {
       label: 'Bantuan',
       groups: [
         { label: 'Bantuan', items: [
-          <RBtn key="h" icon={CircleHelp} label="Bantuan" big onClick={() => onNotify('Word for the web · Microsoft 365 F3 · Ribbon sederhana/klasik lewat panah di kanan ribbon')} />,
+          <RBtn key="h" icon={CircleHelp} label="Bantuan" big onClick={() => onNotify('Word for the web · Office Romeo F3 · Ribbon sederhana/klasik lewat panah di kanan ribbon')} />,
           <RBtn key="k" icon={Keyboard} label="Pintasan" big onClick={() => onNotify('⌘B tebal · ⌘I miring · ⌘U garis bawah · ⌘F temukan · ⌘P cetak · ⌘Z urungkan · ⌘K Copilot')} />,
-          <RBtn key="ab" icon={FileText} label="Tentang" onClick={() => onNotify('Microsoft 365 F3 · Word for the web · OneDrive 2 GB')} />,
+          <RBtn key="ab" icon={FileText} label="Tentang" onClick={() => onNotify('Office Romeo F3 · Word for the web · OneDrive 2 GB')} />,
         ] },
       ],
     },

@@ -21,7 +21,7 @@ export function EditorChrome({
   return (
     <>
       <header className={`ed-top accent-${kind}`}>
-        <button className="ed-appmark" onClick={onBack} title="Microsoft 365">
+        <button className="ed-appmark" onClick={onBack} title="Office Romeo">
           {mark}
         </button>
         <div className="ed-file">

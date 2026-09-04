@@ -265,7 +265,7 @@ export function createFile(type, name) {
       slides: [{
         id: newId('s'),
         layout: 'title',
-        kicker: 'MICROSOFT 365',
+        kicker: 'OFFICE ROMEO',
         title: 'Judul presentasi',
         subtitle: 'Tambahkan subtitel untuk membuka cerita.',
         body: '',
