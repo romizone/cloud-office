@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Calendar, FileText, Home, Mail, Sparkles } from 'lucide-react'
 import FluentShell from '../components/FluentShell.jsx'
 import { CopilotMark } from '../components/MsApps.jsx'
 import { USER, greeting } from '../lib/brand.js'
-import { askCopilot, copilotHealth } from '../lib/copilotClient.js'
+import { askCopilot } from '../lib/copilotClient.js'
 import { createFile } from '../lib/files.js'
 
 const CHIPS = [
@@ -17,9 +17,6 @@ export default function CopilotWork({ files, onOpen, onCreate, onNotify }) {
   const [prompt, setPrompt] = useState('')
   const [messages, setMessages] = useState([])
   const [busy, setBusy] = useState(false)
-  const [configured, setConfigured] = useState(null)
-
-  useEffect(() => { copilotHealth().then((info) => setConfigured(Boolean(info.configured))) }, [])
 
   const nav = [
     { id: 'copilot', label: 'Copilot', icon: <CopilotMark size={16} /> },
@@ -89,7 +86,7 @@ export default function CopilotWork({ files, onOpen, onCreate, onNotify }) {
         <div className="copilot-hero">
           <CopilotMark size={42} />
           <h1>{greeting()}, {USER.short}</h1>
-          <p>Copilot untuk Microsoft 365 F3 · {configured ? 'terhubung ke gateway' : 'siaga lokal di file Word, Excel, dan PowerPoint'}</p>
+          <p>Copilot untuk Microsoft 365 F3 · bekerja di Word, Excel, PowerPoint, Outlook, dan Teams</p>
         </div>
         <form className="copilot-composer" onSubmit={(event) => { event.preventDefault(); submit() }}>
           <Sparkles size={18} />

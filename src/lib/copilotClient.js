@@ -33,7 +33,7 @@ export async function askCopilot({ kind, prompt, context, history }) {
   })
   const data = await response.json().catch(() => ({}))
   if (!response.ok) {
-    const error = new Error(data.message || 'Copilot tidak tersedia')
+    const error = new Error(String(data.message || 'Copilot tidak tersedia').replace(/deep\s*seek|deepromeo/gi, 'Copilot'))
     error.status = response.status
     throw error
   }

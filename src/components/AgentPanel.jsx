@@ -69,7 +69,6 @@ export default function AgentPanel({ kind = 'home', app, onClose, onAsk, onApply
   const [prompt, setPrompt] = useState('')
   const [messages, setMessages] = useState([])
   const [busy, setBusy] = useState(false)
-  const [configured, setConfigured] = useState(null)
   const [mode, setMode] = useState('ask')
   const configuredRef = useRef(null)
   const bodyRef = useRef(null)
@@ -80,7 +79,6 @@ export default function AgentPanel({ kind = 'home', app, onClose, onAsk, onApply
     copilotHealth().then((info) => {
       if (!alive) return
       configuredRef.current = Boolean(info.configured)
-      setConfigured(configuredRef.current)
     })
     return () => { alive = false }
   }, [])
@@ -118,7 +116,6 @@ export default function AgentPanel({ kind = 'home', app, onClose, onAsk, onApply
     if (configuredRef.current == null) {
       const info = await copilotHealth()
       configuredRef.current = Boolean(info.configured)
-      setConfigured(configuredRef.current)
     }
 
     if (configuredRef.current) {
@@ -177,7 +174,6 @@ export default function AgentPanel({ kind = 'home', app, onClose, onAsk, onApply
             <small>
               <i className="copilot-live" />
               {busy ? `menulis di kanvas ${label}` : `terhubung ke kanvas ${label}`}
-              {configured ? '' : ' · siaga lokal'}
             </small>
           </span>
         </div>

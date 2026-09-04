@@ -106,12 +106,12 @@ export async function exportPptx(name, deck) {
   const visible = (deck.slides || []).filter((slide) => !slide.hidden)
   const slides = visible.map((slide, index) => `
     <section class="slide ${slide.layout}" style="background:${theme.bg};color:${theme.body}">
-      ${slide.layout !== 'blank' ? `<div class="kicker" style="color:${theme.kicker}">${escapeHtml(slide.kicker || '')}</div>` : ''}
-      <h1 style="color:${theme.title}">${escapeHtml(slide.title || '')}</h1>
-      ${slide.subtitle && ['title', 'section', 'picture'].includes(slide.layout) ? `<p class="sub">${escapeHtml(slide.subtitle)}</p>` : ''}
+      ${slide.layout !== 'blank' ? `<div class="kicker" style="color:${theme.kicker}">${escapeHtml(plain(slide.kicker))}</div>` : ''}
+      <h1 style="color:${theme.title}">${escapeHtml(plain(slide.title))}</h1>
+      ${slide.subtitle && ['title', 'section', 'picture'].includes(slide.layout) ? `<p class="sub">${escapeHtml(plain(slide.subtitle))}</p>` : ''}
       ${slide.layout === 'split' ? `<div class="split"><div>${toList(slide.body)}</div><div>${toList(slide.extra)}</div></div>` : ''}
       ${slide.layout === 'content' ? toList(slide.body) : ''}
-      ${slide.layout === 'blank' ? `<p class="free">${escapeHtml(slide.body || '')}</p>` : ''}
+      ${slide.layout === 'blank' ? `<p class="free">${escapeHtml(plain(slide.body))}</p>` : ''}
       ${slide.layout === 'picture' && slide.image ? `<img src="${slide.image}" alt="" />` : ''}
       ${slide.layout === 'table' ? toTable(slide.table) : ''}
       ${slide.notes ? `<aside class="notes">${escapeHtml(slide.notes)}</aside>` : ''}
@@ -158,8 +158,12 @@ const themes = {
   rose: { bg: '#3a1824', kicker: '#f0b7c9', title: '#fff5f8', body: '#efd3dc' },
 }
 
+function plain(text) {
+  return String(text || '').replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+}
+
 function toList(text) {
-  const items = String(text || '').split('\n').filter(Boolean).map((line) => `<li>${escapeHtml(line)}</li>`).join('')
+  const items = plain(text).split('\n').filter(Boolean).map((line) => `<li>${escapeHtml(line)}</li>`).join('')
   return items ? `<ul>${items}</ul>` : ''
 }
 

@@ -658,22 +658,37 @@ export function evaluateGrid(cells) {
   return { get, display }
 }
 
-export function displayOf(val, fmt) {
+export function displayOf(val, fmt, opts = {}) {
   if (!val || val.empty) return ''
   if (val.t === 'e') return val.v
   if (val.t === 'b') return val.v ? 'TRUE' : 'FALSE'
   if (val.t === 's') return val.v
   if (val.t === 'n') {
     if (!Number.isFinite(val.v)) return ERRORS.value
-    if (fmt === 'currency') return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(val.v)
-    if (fmt === 'percent') return new Intl.NumberFormat('id-ID', { style: 'percent', maximumFractionDigits: 1 }).format(val.v)
-    if (fmt === 'number') return new Intl.NumberFormat('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(val.v)
+    const decimals = Number.isInteger(opts.decimals) ? Math.max(0, Math.min(10, opts.decimals)) : null
+    const nf = (options) => new Intl.NumberFormat('id-ID', options).format(val.v)
+    if (fmt === 'currency') return nf({ style: 'currency', currency: 'IDR', minimumFractionDigits: decimals ?? 0, maximumFractionDigits: decimals ?? 0 })
+    if (fmt === 'accounting') return nf({ style: 'currency', currency: 'IDR', currencySign: 'accounting', minimumFractionDigits: decimals ?? 2, maximumFractionDigits: decimals ?? 2 })
+    if (fmt === 'percent') return nf({ style: 'percent', minimumFractionDigits: decimals ?? 0, maximumFractionDigits: decimals ?? 1 })
+    if (fmt === 'number') return nf({ minimumFractionDigits: decimals ?? 2, maximumFractionDigits: decimals ?? 2, useGrouping: false })
+    if (fmt === 'comma') return nf({ minimumFractionDigits: decimals ?? 2, maximumFractionDigits: decimals ?? 2 })
+    if (fmt === 'scientific') return val.v.toExponential(decimals ?? 2).replace('.', ',')
     if (fmt === 'date') return new Date(Math.round((val.v - 25569) * 86400000)).toLocaleDateString('id-ID')
-    if (fmt === 'accounting') return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 2 }).format(val.v)
-    if (Number.isInteger(val.v)) return new Intl.NumberFormat('id-ID').format(val.v)
-    return new Intl.NumberFormat('id-ID', { maximumFractionDigits: 6 }).format(val.v)
+    if (fmt === 'longdate') return new Date(Math.round((val.v - 25569) * 86400000)).toLocaleDateString('id-ID', { dateStyle: 'long' })
+    if (fmt === 'time') return new Date(Math.round((val.v - 25569) * 86400000)).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
+    if (fmt === 'text') return String(opts.raw ?? val.v)
+    if (decimals != null) return nf({ minimumFractionDigits: decimals, maximumFractionDigits: decimals })
+    if (Number.isInteger(val.v)) return nf({})
+    return nf({ maximumFractionDigits: 6 })
   }
   return ''
+}
+
+/** Excel serial date for today (days since 1899-12-30). */
+export function todaySerial() {
+  const now = new Date()
+  const utc = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate())
+  return Math.floor(utc / 86400000) + 25569
 }
 
 export function rangeStats(display, r1, c1, r2, c2) {

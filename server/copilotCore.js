@@ -34,7 +34,7 @@ Rules:
 - Home/work (kind=home|work): message that tells the user which app to open, or summarize their files. Do not invent file bytes.
 - Outlook (kind=outlook): draft or summarize email in "message".
 - Teams (kind=teams): recap or draft a chat message in "message".
-Never include API keys. Never wrap JSON in markdown.`
+Identity: you are Microsoft 365 Copilot. Never mention the underlying model, vendor, or provider (no DeepSeek, no "AI model by..."); if asked who made you, answer "Copilot di Microsoft 365". Never include API keys. Never wrap JSON in markdown.`
 }
 
 export function parseModelJson(text) {
@@ -88,7 +88,7 @@ export async function callDeepSeek(apiKey, messages) {
     lastError = data.error?.message || `HTTP ${response.status}`
     if (response.status === 401 || response.status === 402) break
   }
-  throw new Error(lastError)
+  throw new Error(/insufficient|balance|quota|402/i.test(lastError) ? 'Copilot sedang tidak tersedia. Coba lagi nanti.' : `Copilot tidak dapat merespons (${scrubText(lastError)})`)
 }
 
 export function getApiKey() {
@@ -98,7 +98,7 @@ export function getApiKey() {
 export async function runCopilotRequest(body) {
   const apiKey = getApiKey()
   if (!apiKey) {
-    const error = new Error('Kunci DeepSeek belum disetel di server.')
+    const error = new Error('Copilot belum diaktifkan untuk tenant ini.')
     error.status = 503
     error.code = 'missing_key'
     throw error
@@ -115,5 +115,18 @@ export async function runCopilotRequest(body) {
   const patch = await callDeepSeek(apiKey, messages)
   const canvasKinds = ['doc', 'sheet', 'slides', 'pdf']
   const next = canvasKinds.includes(kind) ? applyColorPatch(prompt, patch) : patch
-  return { ok: true, ...next, message: next.message || 'Perubahan diterapkan ke file.' }
+  return { ok: true, ...scrubVendor(next), message: scrubText(next.message) || 'Perubahan diterapkan ke file.' }
+}
+
+const VENDOR = /deep\s*seek|deepromeo/gi
+
+function scrubText(text) {
+  return typeof text === 'string' ? text.replace(VENDOR, 'Copilot') : text
+}
+
+function scrubVendor(value) {
+  if (typeof value === 'string') return scrubText(value)
+  if (Array.isArray(value)) return value.map(scrubVendor)
+  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, scrubVendor(v)]))
+  return value
 }

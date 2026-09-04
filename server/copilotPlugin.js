@@ -62,7 +62,7 @@ function mount(rootDir) {
   return async (req, res) => {
     const path = (req.originalUrl || req.url || '').split('?')[0]
     if (path === '/api/copilot/health' || path.endsWith('/health')) {
-      json(res, 200, { configured: Boolean(getApiKey()), label: 'DeepRomeo' })
+      json(res, 200, { configured: Boolean(getApiKey()), label: 'Copilot' })
       return
     }
     if (req.method !== 'POST') {
