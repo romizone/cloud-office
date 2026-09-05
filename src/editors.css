@@ -416,3 +416,5 @@
 .page-stack.size-legal .paper { min-height: 1280px; }
 .page-stack.landscape .paper { min-height: 620px; }
 .page-stack.size-a5 .paper { min-height: 780px; }
+
+.s-grid.show-formulas .s-cell { font-family: 'Courier New', monospace; text-align: left; }

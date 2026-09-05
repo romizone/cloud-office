@@ -6,7 +6,7 @@ import { CanvasCopilotChip } from '../components/CopilotBridge.jsx'
 import ShareDialog from '../components/ShareDialog.jsx'
 import { PdfIcon } from '../components/MsApps.jsx'
 import { parseFontColor } from '../lib/editIntent.js'
-import { escapeText } from '../lib/files.js'
+import { escapeText, sanitizeHtml } from '../lib/files.js'
 import { asFragment, colorPick, isAnalyzeIntent, isReviseIntent, replacePick, useCanvasPick } from '../lib/canvasPick.js'
 
 const PAGES = [
@@ -148,7 +148,7 @@ export default function PdfEditor({ file, onChange, onBack, onNotify }) {
       if (result?.color) applyInk(result.color)
       const frag = result?.selectionHtml || result?.html || result?.appendHtml
       if (frag) {
-        replacePick(pageRef.current, pickRef.current, asFragment(frag))
+        replacePick(pageRef.current, pickRef.current, asFragment(sanitizeHtml(frag)))
         savePageEdits()
         return true
       }
@@ -158,7 +158,7 @@ export default function PdfEditor({ file, onChange, onBack, onNotify }) {
     if (result?.color) done = applyInk(result.color)
     if (result?.notes) { writeNotes(String(result.notes)); done = true }
     if (result?.html && pageRef.current) {
-      const body = String(result.html)
+      const body = sanitizeHtml(result.html)
       persist({ pages: { ...stateRef.current.pages, [page]: body } })
       setRevision((n) => n + 1)
       done = true

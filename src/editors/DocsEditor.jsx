@@ -16,7 +16,7 @@ import FileBackstage from '../components/FileBackstage.jsx'
 import ShareDialog from '../components/ShareDialog.jsx'
 import { WordIcon } from '../components/MsApps.jsx'
 import { exportDoc, exportDocText } from '../lib/export.js'
-import { escapeText, newId } from '../lib/files.js'
+import { escapeText, newId, sanitizeHtml } from '../lib/files.js'
 import { USER } from '../lib/brand.js'
 import { paintHtml, parseFontColor } from '../lib/editIntent.js'
 import { asFragment, colorPick, isAnalyzeIntent, isReviseIntent, replacePick, useCanvasPick } from '../lib/canvasPick.js'
@@ -105,6 +105,7 @@ export default function DocsEditor({ file, onChange, onBack, onNotify }) {
   const [paraAfter, setParaAfter] = useState(8)
   const [indentLeft, setIndentLeft] = useState(0)
   const recognition = useRef(null)
+  const lastRange = useRef(null)
   const saved = useSavedFlag(html + title + header + footer + JSON.stringify(comments) + zoom + orientation + pageSize)
   const editable = mode === 'edit'
 
@@ -160,6 +161,7 @@ export default function DocsEditor({ file, onChange, onBack, onNotify }) {
 
   const apply = (command, value) => {
     if (!guard()) return
+    if (!selectionInPaper()) restoreRange()
     paper.current?.focus({ preventScroll: true })
     run(command, value)
     persist()
@@ -185,9 +187,10 @@ export default function DocsEditor({ file, onChange, onBack, onNotify }) {
   }
 
   const writePaper = (nextHtml) => {
-    if (!nextHtml) return false
-    if (paper.current) paper.current.innerHTML = nextHtml
-    persist({ html: nextHtml })
+    const clean = sanitizeHtml(nextHtml)
+    if (!clean) return false
+    if (paper.current) paper.current.innerHTML = clean
+    persist({ html: clean })
     return true
   }
 
@@ -199,8 +202,29 @@ export default function DocsEditor({ file, onChange, onBack, onNotify }) {
     return paper.current?.contains(el) ? sel : null
   }
 
+  // Keep the last caret position inside the paper: ribbon inputs (steppers, selects) steal the DOM selection.
+  useEffect(() => {
+    const remember = () => {
+      const sel = selectionInPaper()
+      if (sel) lastRange.current = sel.getRangeAt(0).cloneRange()
+    }
+    document.addEventListener('selectionchange', remember)
+    return () => document.removeEventListener('selectionchange', remember)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const restoreRange = () => {
+    const range = lastRange.current
+    if (!range || !paper.current?.contains(range.commonAncestorContainer)) return false
+    const sel = window.getSelection()
+    sel.removeAllRanges()
+    sel.addRange(range)
+    return true
+  }
+
   const selectedBlocks = (retry = true) => {
-    const sel = selectionInPaper()
+    let sel = selectionInPaper()
+    if (!sel && restoreRange()) sel = selectionInPaper()
     if (!sel || !paper.current) return []
     const range = sel.getRangeAt(0)
     const toBlock = (node) => {
@@ -223,7 +247,10 @@ export default function DocsEditor({ file, onChange, onBack, onNotify }) {
 
   const styleBlocks = (styles) => {
     if (!guard()) return
+    // Restore the caret before focusing: focusing the paper with the selection elsewhere resets it to the top.
+    if (!selectionInPaper()) restoreRange()
     paper.current?.focus({ preventScroll: true })
+    if (!selectionInPaper()) restoreRange()
     const blocks = selectedBlocks()
     if (!blocks.length) return onNotify('Letakkan kursor di paragraf dulu')
     blocks.forEach((el) => Object.assign(el.style, styles))
@@ -362,7 +389,7 @@ export default function DocsEditor({ file, onChange, onBack, onNotify }) {
     if (pickRef.current?.text) {
       if (result?.color) applyTextColor(result.color)
       const frag = result?.selectionHtml || result?.appendHtml || (result?.html && !/<h1[\s>]/i.test(result.html) ? result.html : null)
-      if (frag) return applyToPick(asFragment(frag))
+      if (frag) return applyToPick(asFragment(sanitizeHtml(frag)))
       return Boolean(result?.color)
     }
     if (result?.html) writePaper(result.html)
@@ -733,8 +760,8 @@ export default function DocsEditor({ file, onChange, onBack, onNotify }) {
         ] },
         { label: 'Header & Footer', items: [
           <RMenu key="hf" icon={Proportions} label="Header & Footer" big items={[
-            { id: 'h', label: 'Edit header', run: () => { setShowHeaderFooter(true); document.querySelector('.page-header')?.focus() } },
-            { id: 'f', label: 'Edit footer', run: () => { setShowHeaderFooter(true); document.querySelector('.page-footer span')?.focus() } },
+            { id: 'h', label: 'Edit header', run: () => { setShowHeaderFooter(true); window.setTimeout(() => document.querySelector('.page-header')?.focus(), 30) } },
+            { id: 'f', label: 'Edit footer', run: () => { setShowHeaderFooter(true); window.setTimeout(() => document.querySelector('.page-footer span')?.focus(), 30) } },
             { id: 'pn', label: 'Nomor halaman di footer', run: () => { setFooter('Halaman 1'); persist({ footer: 'Halaman 1' }) } },
             { id: 'clear', label: 'Kosongkan header & footer', run: () => { setHeader(''); setFooter(''); persist({ header: '', footer: '' }) } },
           ]} />,

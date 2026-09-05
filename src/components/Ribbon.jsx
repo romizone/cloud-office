@@ -106,10 +106,12 @@ function useDropdown() {
     document.addEventListener('mousedown', onDown)
     document.addEventListener('keydown', onKey)
     window.addEventListener('resize', onScroll)
+    document.addEventListener('scroll', onScroll, true)
     return () => {
       document.removeEventListener('mousedown', onDown)
       document.removeEventListener('keydown', onKey)
       window.removeEventListener('resize', onScroll)
+      document.removeEventListener('scroll', onScroll, true)
     }
   }, [open])
 

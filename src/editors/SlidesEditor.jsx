@@ -14,7 +14,7 @@ import { CanvasCopilotChip, focusCopilotComposer } from '../components/CopilotBr
 import FileBackstage from '../components/FileBackstage.jsx'
 import ShareDialog from '../components/ShareDialog.jsx'
 import { PowerPointIcon } from '../components/MsApps.jsx'
-import { escapeText, newId } from '../lib/files.js'
+import { escapeText, newId, sanitizeHtml } from '../lib/files.js'
 import { USER } from '../lib/brand.js'
 import { exportPptx } from '../lib/export.js'
 import { asFragment, isAnalyzeIntent, isReviseIntent, replacePick, useCanvasPick } from '../lib/canvasPick.js'
@@ -112,17 +112,53 @@ function SlideCanvas({ slide, theme, onChange, present, transition, size, varian
       <Tag className={className} contentEditable suppressContentEditableWarning spellCheck={spell} dangerouslySetInnerHTML={{ __html: value || '' }} onBlur={(event) => { if (event.currentTarget.innerHTML !== (value || '')) set({ [key]: event.currentTarget.innerHTML }) }} />
     )
   }
+  const focusLine = (key, i) => window.setTimeout(() => {
+    const el = canvasRef.current?.querySelectorAll(`[data-line="${key}"]`)[i]
+    if (!el) return
+    el.focus()
+    const range = document.createRange()
+    range.selectNodeContents(el)
+    range.collapse(false)
+    const sel = window.getSelection()
+    sel.removeAllRanges()
+    sel.addRange(range)
+  }, 30)
   const lines = (text, key, Tag = 'p') => bullets(text).map((line, i) => {
     const visible = !present || slide.animation === 'none' || !slide.animation || i < step
     const anim = present && slide.animation && slide.animation !== 'none' && i === step - 1 ? `anim-${slide.animation}` : ''
     if (!canEdit) return <Tag key={i} className={`${visible ? '' : 'anim-hidden'} ${anim}`} dangerouslySetInnerHTML={{ __html: line }} />
     return (
-      <Tag key={i} contentEditable suppressContentEditableWarning spellCheck={spell} dangerouslySetInnerHTML={{ __html: line }} onBlur={(event) => {
-        const next = bullets(slide[key])
-        if (next[i] === event.currentTarget.innerHTML) return
-        next[i] = event.currentTarget.innerHTML
-        set({ [key]: next.join('\n') })
-      }} />
+      <Tag
+        key={i}
+        data-line={key}
+        contentEditable
+        suppressContentEditableWarning
+        spellCheck={spell}
+        dangerouslySetInnerHTML={{ __html: line }}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' && !event.shiftKey) {
+            // Enter starts a new bullet, like PowerPoint; Shift+Enter keeps a soft line break.
+            event.preventDefault()
+            const next = bullets(slide[key])
+            next[i] = event.currentTarget.innerHTML
+            next.splice(i + 1, 0, '')
+            set({ [key]: next.join('\n') })
+            focusLine(key, i + 1)
+          } else if (event.key === 'Backspace' && !plain(event.currentTarget.innerHTML).trim() && bullets(slide[key]).length > 1) {
+            event.preventDefault()
+            const next = bullets(slide[key])
+            next.splice(i, 1)
+            set({ [key]: next.join('\n') })
+            focusLine(key, Math.max(0, i - 1))
+          }
+        }}
+        onBlur={(event) => {
+          const next = bullets(slide[key])
+          if (next[i] === undefined || next[i] === event.currentTarget.innerHTML) return
+          next[i] = event.currentTarget.innerHTML
+          set({ [key]: next.join('\n') })
+        }}
+      />
     )
   })
 
@@ -563,7 +599,7 @@ export default function SlidesEditor({ file, onChange, onBack, onNotify }) {
     if (pickRef.current?.text && stageRef.current) {
       const frag = result?.selectionHtml || result?.html
       if (frag) {
-        replacePick(stageRef.current, pickRef.current, asFragment(typeof frag === 'string' ? frag : JSON.stringify(frag)))
+        replacePick(stageRef.current, pickRef.current, asFragment(sanitizeHtml(typeof frag === 'string' ? frag : JSON.stringify(frag))))
         commitActiveField()
         return true
       }
@@ -583,7 +619,9 @@ export default function SlidesEditor({ file, onChange, onBack, onNotify }) {
       return true
     }
     if (result?.updateSlide) {
-      updateSlide({ ...slide, ...result.updateSlide })
+      const patch = { ...result.updateSlide }
+      ;['title', 'kicker', 'subtitle', 'body', 'extra'].forEach((k) => { if (typeof patch[k] === 'string') patch[k] = sanitizeHtml(patch[k]) })
+      updateSlide({ ...slide, ...patch })
       return true
     }
     if (result?.notes) {

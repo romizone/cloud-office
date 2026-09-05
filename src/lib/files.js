@@ -329,6 +329,24 @@ export function escapeText(text) {
     .replace(/>/g, '&gt;')
 }
 
+/** Strips active content (scripts, inline handlers, javascript: URLs) from HTML before it reaches a canvas. */
+export function sanitizeHtml(html) {
+  const raw = String(html ?? '')
+  if (!raw) return ''
+  if (typeof document === 'undefined') return raw.replace(/<script[\s\S]*?<\/script>/gi, '').replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '').replace(/(href|src)\s*=\s*(["']?)\s*javascript:[^"'>\s]*\2/gi, '$1=""')
+  const box = document.createElement('template')
+  box.innerHTML = raw
+  box.content.querySelectorAll('script,iframe,object,embed,link,meta,style').forEach((el) => el.remove())
+  box.content.querySelectorAll('*').forEach((el) => {
+    [...el.attributes].forEach((attr) => {
+      const name = attr.name.toLowerCase()
+      const value = String(attr.value || '').trim().toLowerCase()
+      if (name.startsWith('on') || ((name === 'href' || name === 'src' || name === 'xlink:href') && value.startsWith('javascript:'))) el.removeAttribute(attr.name)
+    })
+  })
+  return box.innerHTML
+}
+
 export function textToHtml(name, text) {
   const paragraphs = String(text ?? '').replace(/\r/g, '').split(/\n{2,}/).map((block) => block.trim()).filter(Boolean)
   const body = paragraphs.map((block) => `<p>${escapeText(block).replace(/\n/g, '<br>')}</p>`).join('')
