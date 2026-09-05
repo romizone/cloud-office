@@ -1,5 +1,5 @@
 export const TENANT = 'Northstar Studio'
-export const USER = { name: 'Rominur Ismanto', short: 'Rominur', initials: 'RI', email: 'rominur@northstar.id' }
+export const USER = { name: 'Pengguna Office Romeo', short: '', initials: 'OR', email: 'pengguna@officeromeo.id' }
 export const SKU = { name: 'Office Romeo F3', detail: 'Aplikasi web & seluler · OneDrive 2 GB' }
 
 // Only four apps are surfaced in the launcher and on the home page.

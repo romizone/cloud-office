@@ -196,7 +196,7 @@ export default function DriveApp({ files, onOpen, onCreate, onPatch, onNotify, v
             <section className="m365-welcome">
               <div>
                 <p className="eyebrow">{new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
-                <h1>{greeting()}, {USER.short}</h1>
+                <h1>{greeting()}</h1>
                 <p>Office Romeo · aplikasi web Word, Excel, PowerPoint, dan PDF. Copilot bekerja di dalam file.</p>
               </div>
               <button className="copilot-cta" onClick={() => { location.hash = '#/copilot' }}>

@@ -85,7 +85,7 @@ export default function CopilotWork({ files, onOpen, onCreate, onNotify }) {
       <div className="copilot-work">
         <div className="copilot-hero">
           <CopilotMark size={42} />
-          <h1>{greeting()}, {USER.short}</h1>
+          <h1>{greeting()}</h1>
           <p>Copilot untuk Office Romeo F3 · bekerja di Word, Excel, PowerPoint, Outlook, dan Teams</p>
         </div>
         <form className="copilot-composer" onSubmit={(event) => { event.preventDefault(); submit() }}>

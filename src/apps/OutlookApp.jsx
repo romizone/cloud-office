@@ -22,7 +22,7 @@ const SEED = [
     id: 'm1', folder: 'inbox', unread: true, from: 'Andi Pratama', email: 'andi@northstar.id', initials: 'AP',
     subject: 'Re: Rencana Strategis 2025 — tinjauan Copilot', time: '10:24',
     preview: 'Saya sudah baca draf Word-nya. Bisa minta Copilot merapikan bagian metrik?',
-    body: 'Rominur,\n\nSaya sudah baca draf Word-nya. Bagian prioritas kuartal sudah kuat. Bisa minta Copilot merapikan bagian metrik agar lebih ringkas untuk dewan?\n\nAndi',
+    body: 'Halo,\n\nSaya sudah baca draf Word-nya. Bagian prioritas kuartal sudah kuat. Bisa minta Copilot merapikan bagian metrik agar lebih ringkas untuk dewan?\n\nAndi',
   },
   {
     id: 'm2', folder: 'inbox', unread: true, from: 'Sari Wijaya', email: 'sari@northstar.id', initials: 'SW',
@@ -40,7 +40,7 @@ const SEED = [
     id: 'm4', folder: 'sent', unread: false, from: USER.name, email: USER.email, initials: USER.initials,
     subject: 'Dek investor — versi web PowerPoint', time: 'Sen',
     preview: 'Saya unggah presentasi ke OneDrive. Copilot sudah menambahkan slide agenda.',
-    body: 'Tim,\n\nPresentasi investor sudah di OneDrive (PowerPoint for the web). Copilot menambahkan slide agenda dan catatan pembicara.\n\nRominur',
+    body: 'Tim,\n\nPresentasi investor sudah di OneDrive (PowerPoint for the web). Copilot menambahkan slide agenda dan catatan pembicara.\n\nSalam',
   },
 ]
 
@@ -123,7 +123,7 @@ export default function OutlookApp({ onNotify }) {
     onNotify?.(target === 'deleted' ? 'Dipindahkan ke Item dihapus' : 'Pesan dipulihkan')
   }
 
-  const localDraft = () => `Terima kasih atas pesannya.\n\nSaya akan menindaklanjuti di Word/Excel yang terkait dan mengirim pembaruan setelah Copilot merapikan file.\n\nSalam,\n${USER.short}`
+  const localDraft = () => `Terima kasih atas pesannya.\n\nSaya akan menindaklanjuti di Word/Excel yang terkait dan mengirim pembaruan setelah Copilot merapikan file.\n\nSalam hormat`
 
   const ask = async (prompt) => {
     if (mail && /ringkas|summar|rekap/i.test(prompt)) {
