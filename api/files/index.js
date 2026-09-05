@@ -1,3 +1,3 @@
 import { vercelHandler } from '../../server/vercelAdapter.js'
 
-export default vercelHandler('/api/copilot')
+export default vercelHandler('/api/files')

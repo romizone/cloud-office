@@ -1,25 +1,25 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { getApiKey, runCopilotRequest } from './copilotCore.js'
+import { handleApi } from './handlers.js'
 
+/** Loads .env / .env.local into process.env for the dev server (never overrides real env). */
 function hydrateEnv(rootDir) {
-  if (getApiKey()) return
-  const envPath = resolve(rootDir, '.env')
-  if (!existsSync(envPath)) return
-  for (const line of readFileSync(envPath, 'utf8').split('\n')) {
-    const trimmed = line.trim()
-    if (!trimmed || trimmed.startsWith('#')) continue
-    const eq = trimmed.indexOf('=')
-    if (eq < 0) continue
-    const name = trimmed.slice(0, eq).trim()
-    const value = trimmed.slice(eq + 1).trim().replace(/^['"]|['"]$/g, '')
-    if ((name === 'DEEPSEEK_API_KEY' || name === 'DEEPSEEK_KEY') && !process.env[name]) {
-      process.env[name] = value
+  for (const name of ['.env', '.env.local']) {
+    const envPath = resolve(rootDir, name)
+    if (!existsSync(envPath)) continue
+    for (const line of readFileSync(envPath, 'utf8').split('\n')) {
+      const trimmed = line.trim()
+      if (!trimmed || trimmed.startsWith('#')) continue
+      const eq = trimmed.indexOf('=')
+      if (eq < 0) continue
+      const key = trimmed.slice(0, eq).trim()
+      const value = trimmed.slice(eq + 1).trim().replace(/^['"]|['"]$/g, '')
+      if (key && !process.env[key]) process.env[key] = value
     }
   }
 }
 
-const MAX_BODY_BYTES = 1_000_000
+const MAX_BODY_BYTES = 14 * 1024 * 1024
 
 function readBody(req) {
   return new Promise((resolveBody, reject) => {
@@ -28,7 +28,7 @@ function readBody(req) {
     req.on('data', (chunk) => {
       size += chunk.length
       if (size > MAX_BODY_BYTES) {
-        const error = new Error('Konteks terlalu besar untuk dikirim ke Copilot.')
+        const error = new Error('Permintaan terlalu besar.')
         error.status = 413
         error.code = 'too_large'
         req.destroy()
@@ -51,49 +51,36 @@ function readBody(req) {
   })
 }
 
-function json(res, status, payload) {
-  res.statusCode = status
+function send(res, result) {
+  res.statusCode = result.status
   res.setHeader('Content-Type', 'application/json; charset=utf-8')
-  res.end(JSON.stringify(payload))
+  Object.entries(result.headers || {}).forEach(([key, value]) => res.setHeader(key, value))
+  res.end(JSON.stringify(result.body))
 }
 
 function mount(rootDir) {
   hydrateEnv(rootDir)
   return async (req, res) => {
     const path = (req.originalUrl || req.url || '').split('?')[0]
-    if (path === '/api/copilot/health' || path.endsWith('/health')) {
-      json(res, 200, { configured: Boolean(getApiKey()), label: 'Copilot' })
-      return
-    }
-    if (req.method !== 'POST') {
-      json(res, 405, { error: 'Method not allowed' })
-      return
-    }
+    let body = {}
     try {
-      const body = await readBody(req)
-      const payload = await runCopilotRequest(body)
-      json(res, 200, payload)
+      if (req.method === 'POST' || req.method === 'PUT') body = await readBody(req)
     } catch (error) {
-      json(res, error.status || 502, {
-        error: error.code || 'upstream',
-        message: error.message || 'Gagal memanggil model.',
-      })
+      send(res, { status: error.status || 400, body: { error: error.code || 'bad_request', message: error.message } })
+      return
     }
+    send(res, await handleApi({ method: req.method, path, body, headers: req.headers }))
   }
 }
 
 export function copilotPlugin(rootDir) {
   return {
-    name: 'cloud-office-copilot',
+    name: 'office-romeo-api',
     configureServer(server) {
-      const handle = mount(rootDir)
-      server.middlewares.use('/api/copilot/health', (req, res) => handle(req, res))
-      server.middlewares.use('/api/copilot', (req, res) => handle(req, res))
+      server.middlewares.use('/api', mount(rootDir))
     },
     configurePreviewServer(server) {
-      const handle = mount(rootDir)
-      server.middlewares.use('/api/copilot/health', (req, res) => handle(req, res))
-      server.middlewares.use('/api/copilot', (req, res) => handle(req, res))
+      server.middlewares.use('/api', mount(rootDir))
     },
   }
 }

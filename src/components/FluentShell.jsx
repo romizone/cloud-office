@@ -3,6 +3,7 @@ import { Bell, Grid3X3, Menu, Search, Settings } from 'lucide-react'
 import { APPS, SKU, TENANT, USER } from '../lib/brand.js'
 import { AppIcon, CopilotMark, MsLogo } from './MsApps.jsx'
 import { createFile } from '../lib/files.js'
+import { useUser } from '../lib/user.js'
 
 export default function FluentShell({
   app = 'home',
@@ -24,6 +25,7 @@ export default function FluentShell({
   const [internalSearch, setInternalSearch] = useState('')
   const searchValue = onSearch ? (search ?? '') : internalSearch
   const topRef = useRef(null)
+  const { user, mode, logout, login } = useUser()
 
   useEffect(() => {
     const close = () => { setWaffle(false); setProfile(false); setNotes(false) }
@@ -85,7 +87,7 @@ export default function FluentShell({
           </a>
           <button className="fluent-icon" onClick={() => { setNotes((v) => !v); setProfile(false); setWaffle(false) }} aria-label="Notifikasi" aria-expanded={notes}><Bell size={18} />{!notes && <i />}</button>
           <button className="fluent-icon" onClick={() => onNotify?.('Pengaturan Office Romeo F3')} aria-label="Pengaturan"><Settings size={18} /></button>
-          <button className="ms-avatar" onClick={() => { setProfile((v) => !v); setNotes(false); setWaffle(false) }} title={USER.email} aria-label="Akun" aria-expanded={profile}>{USER.initials}</button>
+          <button className="ms-avatar" onClick={() => { setProfile((v) => !v); setNotes(false); setWaffle(false) }} title={USER.email} aria-label="Akun" aria-expanded={profile}>{user?.picture ? <img src={user.picture} alt="" referrerPolicy="no-referrer" /> : USER.initials}</button>
           {notes && (
             <div className="fluent-pop notes-pop">
               <strong>Notifikasi</strong>
@@ -97,14 +99,17 @@ export default function FluentShell({
           {profile && (
             <div className="fluent-pop profile-pop">
               <div className="profile-head">
-                <span className="ms-avatar lg">{USER.initials}</span>
+                <span className="ms-avatar lg">{user?.picture ? <img src={user.picture} alt="" referrerPolicy="no-referrer" /> : USER.initials}</span>
                 <div>
                   <b>{USER.name}</b>
                   <small>{USER.email}</small>
-                  <small>{TENANT} · {SKU.name}</small>
+                  <small>{mode === 'cloud' ? 'File tersimpan di akun Anda' : 'Mode tamu · file di perangkat ini'}</small>
                 </div>
               </div>
               <button onClick={() => { setProfile(false); onNotify?.(SKU.detail) }}>Lisensi: {SKU.name}</button>
+              {mode === 'cloud'
+                ? <button className="primary signout" onClick={() => { setProfile(false); logout() }}>Keluar</button>
+                : <button className="primary signout" onClick={() => { setProfile(false); login() }}>Masuk dengan Google</button>}
             </div>
           )}
         </div>

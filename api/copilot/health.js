@@ -1,8 +1,3 @@
-import { getApiKey } from '../../server/copilotCore.js'
+import { vercelHandler } from '../../server/vercelAdapter.js'
 
-export default function handler(req, res) {
-  res.status(200).json({
-    configured: Boolean(getApiKey()),
-    label: 'Copilot',
-  })
-}
+export default vercelHandler('/api/copilot/health')

@@ -6,3 +6,6 @@ dist
 .DS_Store
 .vercel
 *.log
+.data/
+.env*.local
+.env.local

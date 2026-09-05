@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Cloud, MessageSquare } from 'lucide-react'
 import { CopilotMark } from './MsApps.jsx'
 import { APP_NAME, EXT, USER } from '../lib/brand.js'
+import { useUser } from '../lib/user.js'
 
 export function EditorChrome({
   kind = 'doc',
@@ -18,6 +19,7 @@ export function EditorChrome({
 }) {
   const app = APP_NAME[kind] || 'Office'
   const ext = EXT[kind] || 'docx'
+  const { user, mode } = useUser()
   return (
     <>
       <header className={`ed-top accent-${kind}`}>
@@ -32,7 +34,7 @@ export function EditorChrome({
             </span>
             <small>
               <Cloud size={11} />
-              {saved ? `Simpan otomatis · OneDrive · ${app}` : 'Menyimpan ke OneDrive…'}
+              {saved ? `Simpan otomatis · ${mode === 'cloud' ? 'Akun Anda' : 'Perangkat ini'} · ${app}` : 'Menyimpan…'}
             </small>
           </div>
         </div>
@@ -47,7 +49,7 @@ export function EditorChrome({
               <CopilotMark size={16} /> Copilot
             </button>
           )}
-          <div className="ms-avatar sm" title={USER.email}>{USER.initials}</div>
+          <div className="ms-avatar sm" title={USER.email}>{user?.picture ? <img src={user.picture} alt="" referrerPolicy="no-referrer" /> : USER.initials}</div>
         </div>
       </header>
       {children}

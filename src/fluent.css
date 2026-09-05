@@ -235,3 +235,22 @@ button, input, textarea, select { font-family: inherit; }
   .outlook-split, .teams-split { flex-direction: column; }
   .mail-list, .teams-rooms { width: 100%; max-height: 40vh; }
 }
+
+/* ===== Login ===== */
+.login-page { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; padding: 32px 16px; background: radial-gradient(1200px 600px at 20% 0%, #e6f0fb, transparent), radial-gradient(900px 500px at 100% 100%, #f3f0ff, transparent), var(--ms-bg); }
+.login-card { width: min(440px, 100%); background: #fff; border: 1px solid var(--ms-line); border-radius: 12px; padding: 32px 32px 24px; box-shadow: 0 12px 40px #00000014; display: flex; flex-direction: column; gap: 14px; }
+.login-brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; }
+.login-card h1 { margin: 6px 0 0; font-size: 22px; font-weight: 600; letter-spacing: -.3px; }
+.login-lead { margin: 0; color: var(--ms-muted); font-size: 13px; line-height: 1.5; }
+.login-apps { display: flex; gap: 10px; padding: 4px 0 6px; }
+.login-google { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 6px 0; }
+.google-button-host { min-height: 44px; }
+.login-note { display: flex; flex-direction: column; gap: 4px; background: #fff8e1; border: 1px solid #ffe58a; border-radius: 8px; padding: 10px 12px; font-size: 12px; color: #5c4400; }
+.login-note code { font-size: 11px; background: #fff; padding: 1px 4px; border-radius: 3px; }
+.login-error { margin: 0; color: #c4314b; font-size: 12px; }
+.login-guest { align-self: center; color: #616161; font-size: 12px; text-decoration: underline; padding: 6px; }
+.login-guest:hover { color: #242424; }
+.login-foot { max-width: 440px; text-align: center; color: #8a8886; font-size: 11px; margin: 0; }
+.ms-avatar img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
+.profile-pop .signout { margin-top: 8px; width: 100%; justify-content: center; }
+.storage-mode { font-size: 11px; color: #616161; margin-top: 4px; }
