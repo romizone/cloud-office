@@ -479,7 +479,11 @@ export default function SheetsEditor({ file, onChange, onBack, onNotify }) {
       return
     }
     let start = sel.r - 1
-    while (start >= 0 && computed.display[start]?.[sel.c]?.t === 'n') start -= 1
+    while (start >= 0 && computed.display[start]?.[sel.c]?.t === 'n') {
+      // like Excel: a subtotal (=SUM) above ends the block so totals are not double-counted
+      if (/^=SUM\(/i.test(String(tab.cells[start][sel.c] || ''))) break
+      start -= 1
+    }
     start += 1
     if (start >= sel.r) {
       // no numbers above: try to the left, like Excel
@@ -608,11 +612,10 @@ export default function SheetsEditor({ file, onChange, onBack, onNotify }) {
     setSel({ r: b.r1, c: b.c1, r2: b.r1, c2: b.c1 })
   }
 
-  const autofit = () => {
+  const autofit = (from = Math.min(sel.c, sel.c2), to = Math.max(sel.c, sel.c2)) => {
     patchTab((item) => {
-      const b = bounds(sel)
       const widths = [...(item.colWidths || [])]
-      for (let c = b.c1; c <= b.c2; c += 1) {
+      for (let c = from; c <= to; c += 1) {
         let longest = 4
         item.cells.forEach((row, r) => {
           const val = computed.display[r]?.[c]
@@ -950,7 +953,7 @@ export default function SheetsEditor({ file, onChange, onBack, onNotify }) {
             { id: 'cl', label: 'Kosongkan sel', run: () => clearSelection('all') },
           ]} />,
           <RMenu key="fmt" icon={TableProperties} label="Format" big items={[
-            { id: 'af', label: 'Sesuaikan lebar kolom otomatis', run: autofit },
+            { id: 'af', label: 'Sesuaikan lebar kolom otomatis', run: () => autofit() },
             { id: 'cw', label: 'Lebar kolom…', run: setColWidth },
             { id: 'dw', label: 'Lebar default', run: () => patchTab((item) => { item.colWidths = []; return item }) },
             { sep: true },
@@ -1041,7 +1044,7 @@ export default function SheetsEditor({ file, onChange, onBack, onNotify }) {
           <RBtn key="sf" icon={Eye} label="Tampilkan rumus" big active={showFormulas} onClick={() => setShowFormulas((v) => !v)} />,
           <RBtn key="err" icon={CircleHelp} label="Periksa kesalahan" onClick={firstError} />,
           <RBtn key="calc" icon={RefreshCw} label="Hitung sekarang" onClick={() => { persist({ ...content }, title, { track: false }); onNotify('Semua rumus dihitung ulang') }} />,
-          <RBtn key="today" icon={RefreshCw} label="Tanggal hari ini" onClick={() => { if (guard()) { writeCell(sel.r, sel.c, String(todaySerial())); applyFormat({ numFmt: 'date' }) } }} />,
+          <RBtn key="today" icon={RefreshCw} label="Tanggal hari ini" onClick={() => patchTab((item) => { item.cells[sel.r][sel.c] = String(todaySerial()); item.formats[sel.r][sel.c] = { ...(item.formats[sel.r][sel.c] || {}), numFmt: 'date' }; return item })} />,
         ] },
       ],
     },
@@ -1138,7 +1141,7 @@ export default function SheetsEditor({ file, onChange, onBack, onNotify }) {
   ]
 
   const widthFor = (c) => tab.colWidths[c] || 118
-  const gridTemplate = `${headings ? '42px' : '0px'} ${Array.from({ length: COLS }, (_, c) => `${widthFor(c)}px`).join(' ')}`
+  const gridTemplate = `${headings ? '42px ' : ''}${Array.from({ length: COLS }, (_, c) => `${widthFor(c)}px`).join(' ')}`
   const leftOffset = (c) => (headings ? 42 : 0) + Array.from({ length: c }, (_, i) => widthFor(i)).reduce((a, b) => a + b, 0)
   const cellBorder = (fmt) => {
     const b = fmt.border
@@ -1221,14 +1224,14 @@ export default function SheetsEditor({ file, onChange, onBack, onNotify }) {
         <div className="sheet-body">
           <div className="sheet-scroll" ref={gridRef} tabIndex={0} onKeyDown={onGridKey} onPaste={(event) => { if (!editing) { event.preventDefault(); if (guard()) pasteTsv(event.clipboardData.getData('text/plain')) } }} onMouseUp={() => { dragging.current = false }}>
             <div className={`s-grid ${gridlines ? '' : 'no-gridlines'} ${headings ? '' : 'no-headings'} ${showFormulas ? 'show-formulas' : ''}`} style={{ gridTemplateColumns: gridTemplate, zoom: zoom / 100 }}>
-              <div className="s-corner" onMouseDown={(event) => { event.preventDefault(); setSel({ r: 0, c: 0, r2: ROWS - 1, c2: COLS - 1 }) }} />
-              {Array.from({ length: COLS }, (_, c) => (
+              {headings && <div className="s-corner" onMouseDown={(event) => { event.preventDefault(); setSel({ r: 0, c: 0, r2: ROWS - 1, c2: COLS - 1 }) }} />}
+              {headings && Array.from({ length: COLS }, (_, c) => (
                 <div
                   className={`s-colh ${c >= Math.min(sel.c, sel.c2) && c <= Math.max(sel.c, sel.c2) ? 'hot' : ''} ${c < freeze.cols ? 'frozen-col' : ''}`}
                   style={c < freeze.cols ? { left: leftOffset(c) } : undefined}
                   key={colLabel(c)}
                   onMouseDown={(event) => { event.preventDefault(); if (editing) commitDraft(); focusGrid(); setSel({ r: 0, c, r2: ROWS - 1, c2: c }) }}
-                  onDoubleClick={() => { setSel({ r: 0, c, r2: 0, c2: c }); window.setTimeout(autofit, 0) }}
+                  onDoubleClick={() => { setSel({ r: 0, c, r2: 0, c2: c }); autofit(c, c) }}
                 >{colLabel(c)}</div>
               ))}
               {tab.cells.map((row, r) => {
@@ -1236,11 +1239,11 @@ export default function SheetsEditor({ file, onChange, onBack, onNotify }) {
                 let skip = 0
                 return (
                   <div className="s-row" key={r} style={{ display: 'contents' }}>
-                    <div
+                    {headings && <div
                       className={`s-rowh ${r >= Math.min(sel.r, sel.r2) && r <= Math.max(sel.r, sel.r2) ? 'hot' : ''} ${r < freeze.rows ? 'frozen' : ''}`}
                       style={r < freeze.rows ? { top: 28 + r * 28 } : undefined}
                       onMouseDown={(event) => { event.preventDefault(); if (editing) commitDraft(); focusGrid(); setSel({ r, c: 0, r2: r, c2: COLS - 1 }) }}
-                    >{r + 1}</div>
+                    >{r + 1}</div>}
                     {row.map((_, c) => {
                       if (skip > 0) { skip -= 1; return null }
                       const fmt = tab.formats[r][c] || {}
@@ -1266,7 +1269,7 @@ export default function SheetsEditor({ file, onChange, onBack, onNotify }) {
                         alignItems: fmt.valign === 'top' ? 'flex-start' : fmt.valign === 'bottom' ? 'flex-end' : undefined,
                         gridColumn: fmt.span > 1 ? `span ${Math.min(fmt.span, COLS - c)}` : undefined,
                         ...cellBorder(fmt),
-                        ...(frozenRow ? { top: 28 + r * 28 } : {}),
+                        ...(frozenRow ? { top: (headings ? 28 : 0) + r * 28 } : {}),
                         ...(frozenCol ? { left: leftOffset(c) } : {}),
                       }
                       return (

@@ -69,7 +69,7 @@ button, input, textarea, select { font-family: inherit; }
 .copilot-cta { display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 16px; border-radius: 20px; background: linear-gradient(90deg, #ebf3fc, #f3f0ff); color: #5b5fc7; font-weight: 600; font-size: 13px; }
 .create-row, .apps-row { display: grid; gap: 12px; }
 .create-row { grid-template-columns: repeat(4, 1fr); margin-bottom: 28px; }
-.apps-row { grid-template-columns: repeat(8, 1fr); margin-bottom: 32px; }
+.apps-row { grid-template-columns: repeat(4, 1fr); margin-bottom: 32px; }
 .create-tile, .app-tile { background: #fff; border: 1px solid var(--ms-line); border-radius: 8px; }
 .create-tile { display: flex; align-items: center; gap: 12px; padding: 14px; text-align: left; }
 .create-tile span { display: flex; flex-direction: column; gap: 2px; }

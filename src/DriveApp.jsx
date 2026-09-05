@@ -166,7 +166,7 @@ export default function DriveApp({ files, onOpen, onCreate, onPatch, onNotify, v
   }
 
   const heading = {
-    home: ['Beranda Office Romeo', 'Aplikasi web F3 · Word, Excel, PowerPoint, Outlook, Teams'],
+    home: ['Beranda Office Romeo', 'Aplikasi web · Word, Excel, PowerPoint, PDF'],
     onedrive: ['File saya', 'OneDrive · 2 GB · Office Romeo F3'],
     sharepoint: ['Situs tim', 'SharePoint · Pustaka dokumen Northstar'],
     shared: ['Dibagikan', 'File yang Anda bagikan ke orang lain'],
@@ -197,7 +197,7 @@ export default function DriveApp({ files, onOpen, onCreate, onPatch, onNotify, v
               <div>
                 <p className="eyebrow">{new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
                 <h1>{greeting()}, {USER.short}</h1>
-                <p>Office Romeo F3 · aplikasi web Word, Excel, PowerPoint, Outlook, dan Teams. Copilot bekerja di dalam file.</p>
+                <p>Office Romeo · aplikasi web Word, Excel, PowerPoint, dan PDF. Copilot bekerja di dalam file.</p>
               </div>
               <button className="copilot-cta" onClick={() => { location.hash = '#/copilot' }}>
                 <CopilotMark size={22} /> Tanya Copilot
@@ -221,11 +221,7 @@ export default function DriveApp({ files, onOpen, onCreate, onPatch, onNotify, v
                   ['word', 'Word', () => onCreate(createFile('doc'))],
                   ['excel', 'Excel', () => onCreate(createFile('sheet'))],
                   ['powerpoint', 'PowerPoint', () => onCreate(createFile('slides'))],
-                  ['outlook', 'Outlook', () => { location.hash = '#/outlook' }],
-                  ['teams', 'Teams', () => { location.hash = '#/teams' }],
-                  ['onedrive', 'OneDrive', () => setActiveNav('onedrive')],
-                  ['copilot', 'Copilot', () => { location.hash = '#/copilot' }],
-                  ['sharepoint', 'SharePoint', () => setActiveNav('sharepoint')],
+                  ['pdf', 'PDF', () => onCreate(createFile('pdf'))],
                 ].map(([id, label, run]) => (
                   <button key={id} className="app-tile" onClick={run}>
                     <AppIcon app={id} size={40} />

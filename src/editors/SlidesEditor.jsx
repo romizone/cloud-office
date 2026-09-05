@@ -162,7 +162,7 @@ function SlideCanvas({ slide, theme, onChange, present, transition, size, varian
     background: slide.background || undefined,
     '--sl-accent': variant || undefined,
     fontFamily: style.fontFamily || undefined,
-    fontSize: style.fontScale ? `${style.fontScale}%` : undefined,
+    '--sl-scale': style.fontScale ? style.fontScale / 100 : undefined,
     textAlign: style.align || undefined,
     color: style.color || undefined,
     lineHeight: style.lineHeight || undefined,
@@ -174,7 +174,7 @@ function SlideCanvas({ slide, theme, onChange, present, transition, size, varian
   return (
     <div
       ref={canvasRef}
-      className={`sl-canvas ${theme} ${slide.layout} ${present ? 'presenting' : ''} trans-${transition || 'none'} ${size === '4:3' ? 'size-4-3' : ''} ${showGrid && !present ? 'show-grid' : ''}`}
+      className={`sl-canvas th-${theme || 'northstar'} ${slide.layout} ${present ? 'presenting' : ''} trans-${transition || 'none'} ${size === '4:3' ? 'size-4-3' : ''} ${showGrid && !present ? 'show-grid' : ''} ${style.color ? 'has-color' : ''} ${style.lineHeight ? 'has-lh' : ''} ${style.fontFamily ? 'has-font' : ''}`}
       style={canvasStyle}
       onMouseDown={(event) => { if (event.target === event.currentTarget) onSelectShape?.(null) }}
     >
@@ -811,7 +811,7 @@ export default function SlidesEditor({ file, onChange, onBack, onNotify }) {
         )) },
         { label: 'Pengaturan waktu', items: [
           <RNum key="dur" title="Durasi (detik)" value={(content.transitionMs || 350) / 1000} min={0.1} max={3} step={0.1} suffix="dtk" onChange={(v) => guard() && persist({ ...content, transitionMs: Math.round(v * 1000) })} />,
-          <RBtn key="all" icon={RefreshCw} label="Terapkan ke semua" onClick={() => { patchAll((item) => ({ ...item, transition })); persist({ ...contentRef.current, transition }) }} />,
+          <RBtn key="all" icon={RefreshCw} label="Terapkan ke semua" onClick={() => { if (guard()) persist({ ...content, transition, slides: content.slides.map((item) => ({ ...item, transition })) }) }} />,
         ] },
       ],
     },

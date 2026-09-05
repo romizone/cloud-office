@@ -199,7 +199,7 @@ export default function DocsEditor({ file, onChange, onBack, onNotify }) {
     return paper.current?.contains(el) ? sel : null
   }
 
-  const selectedBlocks = () => {
+  const selectedBlocks = (retry = true) => {
     const sel = selectionInPaper()
     if (!sel || !paper.current) return []
     const range = sel.getRangeAt(0)
@@ -210,9 +210,10 @@ export default function DocsEditor({ file, onChange, onBack, onNotify }) {
     const start = toBlock(range.startContainer)
     const end = toBlock(range.endContainer)
     if (!start) {
-      // caret directly inside the paper: wrap loose text into a paragraph
+      // caret directly inside the paper: wrap loose text into a paragraph (once)
+      if (!retry) return []
       run('formatBlock', 'p')
-      return selectedBlocks()
+      return selectedBlocks(false)
     }
     const all = [...paper.current.querySelectorAll(BLOCKS)]
     const a = all.indexOf(start)

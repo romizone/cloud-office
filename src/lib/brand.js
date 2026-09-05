@@ -2,15 +2,12 @@ export const TENANT = 'Northstar Studio'
 export const USER = { name: 'Rominur Ismanto', short: 'Rominur', initials: 'RI', email: 'rominur@northstar.id' }
 export const SKU = { name: 'Office Romeo F3', detail: 'Aplikasi web & seluler · OneDrive 2 GB' }
 
+// Only four apps are surfaced in the launcher and on the home page.
 export const APPS = [
   { id: 'word', label: 'Word', route: '#/', create: 'doc', color: '#185ABD' },
   { id: 'excel', label: 'Excel', route: '#/', create: 'sheet', color: '#107C41' },
   { id: 'powerpoint', label: 'PowerPoint', route: '#/', create: 'slides', color: '#C43E1C' },
-  { id: 'outlook', label: 'Outlook', route: '#/outlook', color: '#0F6CBD' },
-  { id: 'teams', label: 'Teams', route: '#/teams', color: '#5B5FC7' },
-  { id: 'onedrive', label: 'OneDrive', route: '#/onedrive', color: '#0078D4' },
-  { id: 'copilot', label: 'Copilot', route: '#/copilot', color: '#5B5FC7' },
-  { id: 'sharepoint', label: 'SharePoint', route: '#/sharepoint', color: '#038387' },
+  { id: 'pdf', label: 'PDF', route: '#/', create: 'pdf', color: '#D13438' },
 ]
 
 export const EXT = { doc: 'docx', sheet: 'xlsx', slides: 'pptx', pdf: 'pdf' }
