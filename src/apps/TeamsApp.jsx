@@ -24,10 +24,10 @@ const THREADS = {
     { who: 'Sari Wijaya', initials: 'SW', text: 'Budget Q3 perlu baris total sebelum rapat 11:30.', time: '09:41' },
   ],
   produk: [
-    { who: 'Andi Pratama', initials: 'AP', text: 'Word Online F3 cukup untuk naskah. Jangan unduh desktop — SKU kita web-only.', time: 'Kemarin' },
+    { who: 'Andi Pratama', initials: 'AP', text: 'Word Online cukup untuk naskah. Semua bisa dikerjakan di browser.', time: 'Kemarin' },
   ],
   ops: [
-    { who: 'Budi Hartono', initials: 'BH', text: 'OneDrive F3 2 GB. Jangan unggah rekaman rapat mentah.', time: 'Sen' },
+    { who: 'Budi Hartono', initials: 'BH', text: 'OneDrive 2 GB. Jangan unggah rekaman rapat mentah.', time: 'Sen' },
   ],
   andi: [
     { who: 'Andi Pratama', initials: 'AP', text: 'Bisa minta Copilot merangkum utas Umum sebelum stand-up?', time: '08:55' },
@@ -131,7 +131,7 @@ export default function TeamsApp({ onNotify }) {
             <div className="teams-empty">
               <Video size={28} />
               <h2>{section === 'calls' ? 'Panggilan Teams' : 'Rapat hari ini'}</h2>
-              <p>F3 mendukung rapat dan panggilan di browser. Jadwal tersinkron dengan Outlook.</p>
+              <p>Office Romeo mendukung rapat dan panggilan di browser. Jadwal tersinkron dengan Outlook.</p>
               <button className="primary" onClick={() => onNotify?.('Tautan rapat Teams disalin')}><Video size={15} /> Gabung rapat</button>
             </div>
           ) : (
@@ -139,7 +139,7 @@ export default function TeamsApp({ onNotify }) {
               <header className="thread-head">
                 <div>
                   <strong>{CHANNELS.some((c) => c.id === room) ? `# ${title}` : title}</strong>
-                  <small>Copilot in Teams · Office Romeo F3</small>
+                  <small>Copilot in Teams · Office Romeo</small>
                 </div>
                 <button className="ghost" onClick={() => setShowCopilot(true)}><CopilotMark size={16} /> Copilot</button>
               </header>

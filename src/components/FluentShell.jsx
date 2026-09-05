@@ -74,7 +74,6 @@ export default function FluentShell({
         <a className="fluent-brand" href="#/">
           <MsLogo size={18} />
           <span>Office Romeo</span>
-          <em>F3</em>
         </a>
         <div className="fluent-search">
           <Search size={16} />
@@ -86,12 +85,12 @@ export default function FluentShell({
             <span>Copilot</span>
           </a>
           <button className="fluent-icon" onClick={() => { setNotes((v) => !v); setProfile(false); setWaffle(false) }} aria-label="Notifikasi" aria-expanded={notes}><Bell size={18} />{!notes && <i />}</button>
-          <button className="fluent-icon" onClick={() => onNotify?.('Pengaturan Office Romeo F3')} aria-label="Pengaturan"><Settings size={18} /></button>
+          <button className="fluent-icon" onClick={() => onNotify?.('Pengaturan Office Romeo')} aria-label="Pengaturan"><Settings size={18} /></button>
           <button className="ms-avatar" onClick={() => { setProfile((v) => !v); setNotes(false); setWaffle(false) }} title={USER.email} aria-label="Akun" aria-expanded={profile}>{user?.picture ? <img src={user.picture} alt="" referrerPolicy="no-referrer" /> : USER.initials}</button>
           {notes && (
             <div className="fluent-pop notes-pop">
               <strong>Notifikasi</strong>
-              <p>Simpan otomatis aktif di OneDrive (2 GB, F3).</p>
+              <p>Simpan otomatis aktif untuk semua file Anda.</p>
               <p>Copilot tersedia di Word, Excel, PowerPoint, Outlook, dan Teams.</p>
               <button onClick={() => setNotes(false)}>Tandai sudah dibaca</button>
             </div>

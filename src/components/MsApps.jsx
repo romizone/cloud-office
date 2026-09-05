@@ -1,13 +1,23 @@
-export function MsLogo({ size = 18 }) {
+/** Office Romeo brand mark: gradient tile with an "R" monogram. */
+export function OfficeRomeoLogo({ size = 18 }) {
+  const id = `or-grad-${size}`
   return (
-    <svg width={size} height={size} viewBox="0 0 18 18" aria-hidden>
-      <rect x="0" y="0" width="8" height="8" fill="#F25022" />
-      <rect x="10" y="0" width="8" height="8" fill="#7FBA00" />
-      <rect x="0" y="10" width="8" height="8" fill="#00A4EF" />
-      <rect x="10" y="10" width="8" height="8" fill="#FFB900" />
+    <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden>
+      <defs>
+        <linearGradient id={id} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#185ABD" />
+          <stop offset="100%" stopColor="#5B5FC7" />
+        </linearGradient>
+      </defs>
+      <rect width="32" height="32" rx="8" fill={`url(#${id})`} />
+      <path fill="#fff" d="M10 7.5h8.3c4.7 0 7.6 2.5 7.6 6.4 0 2.8-1.6 4.8-4.2 5.6L26.2 24.5h-4.9l-4-4.4h-2.7v4.4H10V7.5zm4.6 3.9v5h3.5c2.1 0 3.3-.9 3.3-2.5s-1.2-2.5-3.3-2.5h-3.5z" />
+      <circle cx="24.5" cy="25.5" r="2.2" fill="#B4A0FF" />
     </svg>
   )
 }
+
+// Kept for older imports.
+export const MsLogo = OfficeRomeoLogo
 
 export function CopilotMark({ size = 22 }) {
   const id = `cp-${size}`

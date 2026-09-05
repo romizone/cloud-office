@@ -167,7 +167,7 @@ export default function DriveApp({ files, onOpen, onCreate, onPatch, onNotify, v
 
   const heading = {
     home: ['Beranda Office Romeo', 'Aplikasi web · Word, Excel, PowerPoint, PDF'],
-    onedrive: ['File saya', 'OneDrive · 2 GB · Office Romeo F3'],
+    onedrive: ['File saya', 'OneDrive · 2 GB · Office Romeo'],
     sharepoint: ['Situs tim', 'SharePoint · Pustaka dokumen Northstar'],
     shared: ['Dibagikan', 'File yang Anda bagikan ke orang lain'],
     fav: ['Favorit', 'File yang Anda sematkan'],
@@ -238,7 +238,7 @@ export default function DriveApp({ files, onOpen, onCreate, onPatch, onNotify, v
             <div>
               <p className="eyebrow">SHAREPOINT</p>
               <h1>Situs tim Northstar</h1>
-              <p>Pustaka dokumen terhubung ke OneDrive F3. Buka file di Word, Excel, atau PowerPoint for the web.</p>
+              <p>Pustaka dokumen terhubung ke OneDrive. Buka file di Word, Excel, atau PowerPoint for the web.</p>
             </div>
           </section>
         )}
