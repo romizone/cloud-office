@@ -532,8 +532,7 @@ export default function DocsEditor({ file, onChange, onBack, onNotify }) {
 
   const getContext = () => ({
     title,
-    html: (paper.current?.innerHTML || html).slice(0, 8000),
-    text: (paper.current?.innerText || '').slice(0, 4000),
+    html: (paper.current?.innerHTML || html).slice(0, 10000),
     header,
     footer,
     selection: pickRef.current?.text || '',

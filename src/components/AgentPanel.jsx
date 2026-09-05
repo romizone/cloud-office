@@ -113,12 +113,8 @@ export default function AgentPanel({ kind = 'home', app, onClose, onAsk, onApply
     let applied = false
     let handled = false
 
-    if (configuredRef.current == null) {
-      const info = await copilotHealth()
-      configuredRef.current = Boolean(info.configured)
-    }
-
-    if (configuredRef.current) {
+    // Health probe runs at mount; if it has not answered yet, try the gateway anyway (it fails fast when unconfigured).
+    if (configuredRef.current !== false) {
       try {
         const result = await askCopilot({
           kind,

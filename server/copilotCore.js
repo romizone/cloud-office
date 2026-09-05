@@ -1,9 +1,9 @@
 import { applyColorPatch } from '../src/lib/editIntent.js'
 
 const MODELS = [
-  'deepseek-v4-flash-vision-exp',
   'deepseek-v4-flash',
   'deepseek-chat',
+  'deepseek-v4-flash-vision-exp',
 ]
 
 export function systemPrompt(kind) {
@@ -23,6 +23,9 @@ Return ONLY JSON with this shape:
   "notes": null
 }
 Rules:
+- Output compact JSON: include only the fields you actually set (message is always required). No prose outside JSON.
+- Prefer the smallest patch: selectionHtml for a selection, appendHtml to add content, color for formatting. Send full html ONLY when the whole document must change (e.g. rewrite tone of everything).
+- For summaries (ringkas/rangkum) of a doc, put the summary into the file as appendHtml: "<blockquote>Ringkasan: ...</blockquote>" AND explain in message.
 - Always edit the open file. Never refuse formatting. Never tell the user to open the desktop app — F3 is web-only.
 - Speak like Copilot in Word/Excel/PowerPoint/Outlook/Teams. Be concise.
 - If context.selection is non-empty, the user highlighted that canvas text. ONLY revise or analyze that selection. For a rewrite, set selectionHtml to the replacement fragment. Do not set html (full document). For analysis, message only and quote the selection.
@@ -73,7 +76,10 @@ export async function callDeepSeek(apiKey, messages) {
         body: JSON.stringify({
           model,
           temperature: 0.3,
-          max_tokens: 2500,
+          max_tokens: 4000,
+          // Reasoning mode multiplies latency and eats the output budget; canvas patches need neither.
+          thinking: { type: 'disabled' },
+          response_format: { type: 'json_object' },
           messages,
         }),
       })
